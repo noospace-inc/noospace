@@ -1,9 +1,0 @@
-{
-  "scripts": {
-    "build": "next build",
-    "deploy": "opennextjs-cloudflare build && wrangler deploy"
-  },
-  "dependencies": {
-    "@opennextjs/cloudflare": "^1.20.4"
-  }
-}

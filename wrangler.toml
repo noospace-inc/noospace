@@ -1,4 +1,0 @@
-   name = "your-project-name"
-   main = ".open-next/worker.js"
-   compatibility_date = "2026-08-28"
-   compatibility_flags = ["nodejs_compat"]

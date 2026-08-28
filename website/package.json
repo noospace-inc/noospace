@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "deploy": "vite build && wrangler deploy"
+    "deploy": "vite build && npx wrangler deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -3,6 +3,7 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "packageManager": "npm@10.9.2",
   "scripts": {
     "dev": "npm run db:local && npm run build && npx wrangler dev --config wrangler.local.toml",
     "dev:vite": "vite dev",

@@ -1,4 +1,4 @@
-name = "your-project-name"
+name = "noospace"
 main = ".output/server/index.mjs"
 compatibility_date = "2026-08-28"
 compatibility_flags = ["nodejs_compat"]

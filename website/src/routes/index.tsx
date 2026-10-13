@@ -3,7 +3,7 @@ import { CalendarClock, CheckCircle2, FolderKanban, Gauge, Trophy } from "lucide
 
 import { PerformanceChart } from "@/components/performance-chart";
 import { AvatarGroup, EmptyState, Initials, ProgressBar, SectionTitle, StatCard, StatusPill, Surface, accent } from "@/components/ui-bits";
-import { addDays, iso, punctualityTrend } from "@/lib/mock-data";
+import { addDays, iso } from "@/lib/mock-data";
 import { projectStats, useStore, useUserMap } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
@@ -26,7 +26,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  const { projects, users, currentUser } = useStore();
+  const { projects, users, currentUser, trend } = useStore();
   const userMap = useUserMap();
   const today = iso(new Date());
 
@@ -79,7 +79,7 @@ function Dashboard() {
             <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-brand-pink" /> Team</span>
             <span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-muted-foreground" /> Target</span>
           </div>
-          <PerformanceChart data={punctualityTrend} />
+          <PerformanceChart data={trend} />
         </Surface>
 
         <Surface>

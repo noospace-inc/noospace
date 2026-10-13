@@ -15,6 +15,7 @@ import { Route as CashbookRouteImport } from './routes/cashbook'
 import { Route as EmployeesRouteImport } from './routes/employees'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as SsoCallbackRouteImport } from './routes/sso-callback'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as CalendarDateRouteImport } from './routes/calendar.$date'
 import { Route as ProjectsIndexRouteImport } from './routes/projects.index'
@@ -50,6 +51,11 @@ const LoginRoute = LoginRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SsoCallbackRoute = SsoCallbackRouteImport.update({
+  id: '/sso-callback',
+  path: '/sso-callback',
   getParentRoute: () => rootRouteImport,
 } as any)
 const UsersRoute = UsersRouteImport.update({
@@ -92,6 +98,7 @@ export interface FileRoutesByFullPath {
   '/employees': typeof EmployeesRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/users': typeof UsersRoute
   '/calendar/$date': typeof CalendarDateRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
@@ -106,6 +113,7 @@ export interface FileRoutesByTo {
   '/employees': typeof EmployeesRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/users': typeof UsersRoute
   '/calendar/$date': typeof CalendarDateRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
@@ -121,6 +129,7 @@ export interface FileRoutesById {
   '/employees': typeof EmployeesRoute
   '/login': typeof LoginRoute
   '/profile': typeof ProfileRoute
+  '/sso-callback': typeof SsoCallbackRoute
   '/users': typeof UsersRoute
   '/calendar/$date': typeof CalendarDateRoute
   '/projects/$projectId': typeof ProjectsProjectIdRoute
@@ -137,6 +146,7 @@ export interface FileRouteTypes {
     | '/employees'
     | '/login'
     | '/profile'
+    | '/sso-callback'
     | '/users'
     | '/calendar/$date'
     | '/projects/$projectId'
@@ -151,6 +161,7 @@ export interface FileRouteTypes {
     | '/employees'
     | '/login'
     | '/profile'
+    | '/sso-callback'
     | '/users'
     | '/calendar/$date'
     | '/projects/$projectId'
@@ -165,6 +176,7 @@ export interface FileRouteTypes {
     | '/employees'
     | '/login'
     | '/profile'
+    | '/sso-callback'
     | '/users'
     | '/calendar/$date'
     | '/projects/$projectId'
@@ -180,6 +192,7 @@ export interface RootRouteChildren {
   EmployeesRoute: typeof EmployeesRoute
   LoginRoute: typeof LoginRoute
   ProfileRoute: typeof ProfileRoute
+  SsoCallbackRoute: typeof SsoCallbackRoute
   UsersRoute: typeof UsersRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
   ProjectsIndexRoute: typeof ProjectsIndexRoute
@@ -229,6 +242,13 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/sso-callback': {
+      id: '/sso-callback'
+      path: '/sso-callback'
+      fullPath: '/sso-callback'
+      preLoaderRoute: typeof SsoCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/users': {
@@ -295,6 +315,7 @@ const rootRouteChildren: RootRouteChildren = {
   EmployeesRoute: EmployeesRoute,
   LoginRoute: LoginRoute,
   ProfileRoute: ProfileRoute,
+  SsoCallbackRoute: SsoCallbackRoute,
   UsersRoute: UsersRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,
   ProjectsIndexRoute: ProjectsIndexRoute,

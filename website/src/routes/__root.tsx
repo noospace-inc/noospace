@@ -1,9 +1,11 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ClerkProvider, useAuth, useUser } from "@clerk/tanstack-react-start";
 import {
   Outlet,
   Link,
   createRootRouteWithContext,
   useRouter,
+  useNavigate,
   HeadContent,
   Scripts,
   useRouterState,
@@ -15,6 +17,8 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/app-shell";
 import { StoreProvider } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
+
+const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 
 function NotFoundComponent() {
   return (
@@ -116,13 +120,19 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 });
 
 function RootShell({ children }: { children: ReactNode }) {
+  const app = clerkPublishableKey ? (
+    <ClerkProvider publishableKey={clerkPublishableKey}>{children}</ClerkProvider>
+  ) : (
+    children
+  );
+
   return (
     <html lang="en">
       <head>
         <HeadContent />
       </head>
       <body>
-        {children}
+        {app}
         <Scripts />
       </body>
     </html>
@@ -132,15 +142,41 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const bare = pathname.startsWith("/auth") || pathname === "/login";
+  const bare = pathname.startsWith("/auth") || pathname === "/login" || pathname === "/sso-callback";
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        {bare ? <Outlet /> : <AppShell><Outlet /></AppShell>}
-        <Toaster position="top-center" />
-      </StoreProvider>
+      {bare ? <Outlet /> : clerkPublishableKey ? <AuthenticatedApp><Outlet /></AuthenticatedApp> : (
+        <StoreProvider><AppShell><Outlet /></AppShell></StoreProvider>
+      )}
+      <Toaster position="top-center" />
     </QueryClientProvider>
   );
+}
+
+function AuthenticatedApp({ children }: { children: ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (isLoaded && !isSignedIn) void navigate({ to: "/login", replace: true });
+  }, [isLoaded, isSignedIn, navigate]);
+
+  if (!isLoaded || !isSignedIn) {
+    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Checking your session…</div>;
+  }
+
+  const email = user?.primaryEmailAddress?.emailAddress;
+  if (!email || !user) {
+    return <div className="grid min-h-screen place-items-center px-6 text-center text-sm text-muted-foreground">Your account needs a verified email address to access Noospace.</div>;
+  }
+
+  const identity = {
+    id: user.id,
+    email,
+    name: user.fullName || [user.firstName, user.lastName].filter(Boolean).join(" ") || email,
+  };
+
+  return <StoreProvider identity={identity}><AppShell>{children}</AppShell></StoreProvider>;
 }

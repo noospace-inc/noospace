@@ -217,6 +217,17 @@ function ProjectDetail() {
     setEditing(false);
     toast.success("Project details saved");
   };
+  const hasProjectChanges =
+    form.name !== project.name ||
+    form.description !== project.description ||
+    editMembers.join(",") !== project.memberIds.join(",") ||
+    editLinks.length !== project.links.length ||
+    editLinks.some((link, index) =>
+      link.id !== project.links[index]?.id ||
+      link.label !== project.links[index]?.label ||
+      link.value !== project.links[index]?.value ||
+      link.url !== project.links[index]?.url,
+    );
 
   return (
     <div className="space-y-4">
@@ -329,14 +340,6 @@ function ProjectDetail() {
                       })}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" className="rounded-full" onClick={saveEdit}>
-                    <Check className="mr-1 size-3.5" /> Save
-                  </Button>
-                  <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
-                    <X className="mr-1 size-3.5" /> Cancel
-                  </Button>
-                </div>
               </div>
             ) : (
               <>
@@ -382,6 +385,18 @@ function ProjectDetail() {
             </div>
           </div>
         </div>
+        {editing ? (
+          <div className="sticky bottom-3 z-10 mt-4 flex justify-end gap-2 bg-transparent p-0">
+            {hasProjectChanges ? (
+              <Button size="sm" className="rounded-full" onClick={saveEdit}>
+                <Check className="mr-1 size-3.5" /> Save
+              </Button>
+            ) : null}
+            <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
+              <X className="mr-1 size-3.5" /> Cancel
+            </Button>
+          </div>
+        ) : null}
       </Surface>
 
       {project.isVideoProject ? (
@@ -503,9 +518,9 @@ function ProjectDetail() {
         </div>
       </Surface>
 
-          <AddScheduleDialog
-            projectId={project.id}
-            memberIds={project.memberIds}
+      <AddScheduleDialog
+        projectId={project.id}
+        memberIds={project.memberIds}
         open={addOpen}
         setOpen={setAddOpen}
         presetDate={presetDate}

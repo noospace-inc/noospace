@@ -29,9 +29,11 @@ function sessionToken(request: Request) {
 }
 
 async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): Promise<Response> {
-  // TanStack's Vite dev adapter does not provide a Cloudflare runtime env.
-  // Keep local Node development working while still accepting bindings in Workers.
-  const env = runtimeEnv ?? {};
+  // Nitro's SSR service may call this entry with only the Request argument.
+  // Its Cloudflare adapter still attaches bindings to the request and isolate.
+  const requestEnv = (request as Request & { runtime?: { cloudflare?: { env?: DatabaseEnv } } }).runtime?.cloudflare?.env;
+  const isolateEnv = (globalThis as typeof globalThis & { __env__?: DatabaseEnv }).__env__;
+  const env = runtimeEnv ?? requestEnv ?? isolateEnv ?? {};
   const origin = request.headers.get("origin");
   if (request.method === "PUT" && origin !== new URL(request.url).origin) {
     return Response.json({ error: "Cross-origin workspace updates are not allowed." }, { status: 403 });

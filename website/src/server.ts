@@ -38,7 +38,7 @@ async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): P
   if (request.method === "PUT" && origin !== new URL(request.url).origin) {
     return Response.json({ error: "Cross-origin workspace updates are not allowed." }, { status: 403 });
   }
-  const secretKey = env.CLERK_SECRET_KEY ?? process.env.CLERK_SECRET_KEY;
+  const secretKey = env.CLERK_SECRET_KEY ?? process.env["CLERK_SECRET_KEY"];
   if (!secretKey) return Response.json({ error: "Authentication is not configured on the server." }, { status: 503 });
   const token = sessionToken(request);
   if (!token) return Response.json({ error: "Sign in is required to access workspace data." }, { status: 401 });

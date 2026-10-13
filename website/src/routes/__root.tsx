@@ -18,7 +18,7 @@ import { AppShell } from "@/components/app-shell";
 import { StoreProvider } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
 
-const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
+const clerkPublishableKey = import.meta.env["VITE_CLERK_PUBLISHABLE_KEY"];
 
 function NotFoundComponent() {
   return (

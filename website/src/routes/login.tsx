@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const hasClerkConfig = Boolean(import.meta.env.VITE_CLERK_PUBLISHABLE_KEY);
+const hasClerkConfig = Boolean(import.meta.env["VITE_CLERK_PUBLISHABLE_KEY"]);
 
 export const Route = createFileRoute("/login")({
   head: () => ({

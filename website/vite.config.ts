@@ -9,10 +9,10 @@ import { loadEnv } from "vite";
 
 // Vite reads .env into import.meta.env, but server-only code reads process.env.
 // Load the secret for local Node SSR without exposing it to browser bundles.
-const localMode = process.env.NODE_ENV === "production" ? "production" : "development";
+const localMode = process.env["NODE_ENV"] === "production" ? "production" : "development";
 const localEnv = loadEnv(localMode, process.cwd(), "");
-if (!process.env.CLERK_SECRET_KEY && localEnv.CLERK_SECRET_KEY) {
-  process.env.CLERK_SECRET_KEY = localEnv.CLERK_SECRET_KEY;
+if (!process.env["CLERK_SECRET_KEY"] && localEnv["CLERK_SECRET_KEY"]) {
+  process.env["CLERK_SECRET_KEY"] = localEnv["CLERK_SECRET_KEY"];
 }
 
 export default defineConfig({

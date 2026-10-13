@@ -27,7 +27,7 @@ const csrfMiddleware = createCsrfMiddleware({
 
 export const startInstance = createStart(() => ({
   requestMiddleware: [
-    ...(process.env.CLERK_SECRET_KEY ? [clerkMiddleware()] : []),
+    ...(process.env["CLERK_SECRET_KEY"] ? [clerkMiddleware()] : []),
     errorMiddleware,
     csrfMiddleware,
   ],

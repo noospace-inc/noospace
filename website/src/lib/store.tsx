@@ -463,7 +463,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
                 id: `pr_${uid()}`,
                 date: entry.date,
                 amount: entry.amount,
-                proof: entry.proof || undefined,
+                ...(entry.proof ? { proof: entry.proof } : {}),
                 note: entry.note || "Added from cashbook",
                 createdBy: activeUserId,
               },

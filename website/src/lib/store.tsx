@@ -63,12 +63,14 @@ type Actions = {
   setDeductionMark: (projectId: string, value: number) => void;
   updateProjectDetails: (projectId: string, patch: Partial<Project>, summary: string) => void;
   setProjectPinned: (projectId: string, pinned: boolean) => void;
+  setThemePreference: (theme: "light" | "dark") => void;
   deleteProject: (projectId: string) => Promise<void>;
   updatePayment: (projectId: string, patch: Partial<PaymentDetails>, summary: string) => void;
   addPaymentReceived: (projectId: string, payment: Omit<PaymentReceived, "id" | "createdBy">) => void;
   setProjectSetting: <K extends keyof ProjectSettings>(projectId: string, key: K, value: ProjectSettings[K]) => void;
   addDistribution: (projectId: string, distribution: Omit<Distribution, "id" | "createdBy">) => void;
   addNote: (note: Omit<CalendarNote, "id">) => void;
+  deleteNote: (noteId: string) => void;
   addCashEntry: (entry: Omit<CashEntry, "id" | "createdBy" | "createdAt">) => void;
   updateCashEntry: (entryId: string, entry: Omit<CashEntry, "id" | "createdBy" | "createdAt">) => void;
   setCashSettled: (entryId: string, settled: boolean) => void;
@@ -383,6 +385,10 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     });
   }, []);
 
+  const setThemePreference = useCallback<Actions["setThemePreference"]>((theme) => {
+    setUsers((prev) => prev.map((user) => user.id === activeUserId ? { ...user, theme } : user));
+  }, [activeUserId]);
+
   const deleteProject = useCallback<Actions["deleteProject"]>(async (projectId) => {
     const nextProjects = projects.filter((project) => project.id !== projectId);
     const nextCash = cash.filter((entry) => entry.projectId !== projectId);
@@ -415,13 +421,14 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
   const addPaymentReceived = useCallback<Actions["addPaymentReceived"]>(
     (projectId, payment) =>
       patchProject(projectId, (p) => {
+        const cashEntryId = `c_${uid()}`;
         const received = p.payment.amountReceived + payment.amount;
         notify(`Credited ${inr(payment.amount)} — ${p.payment.clientName || p.name}`, "money");
         const status = p.payment.invoiceAmount > 0 && received >= p.payment.invoiceAmount ? "paid" : "partial";
-        const entry = { ...payment, id: `pr_${uid()}`, createdBy: activeUserId };
+        const entry = { ...payment, id: `pr_${uid()}`, cashEntryId, createdBy: activeUserId };
         setCash((prev) => [
           {
-            id: `c_${uid()}`,
+            id: cashEntryId,
             entryType: "deposit",
             amount: payment.amount,
             projectId,
@@ -461,6 +468,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
   const addDistribution = useCallback<Actions["addDistribution"]>(
     (projectId, distribution) =>
       patchProject(projectId, (p) => {
+        const cashEntryId = `c_${uid()}`;
         const distributed = distribution.allocations.reduce((sum, a) => sum + a.amount, 0);
         if (distributed > 0) notify(`Debited ${inr(distributed)} for ${p.name}`, "money");
         const received = p.payment.amountReceived + distribution.amountReceived;
@@ -473,7 +481,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
           .join(", ");
         setCash((prev) => [
           {
-            id: `c_${uid()}`,
+            id: cashEntryId,
             entryType: "expense",
             amount: distributed,
             projectId,
@@ -494,7 +502,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
             ...p,
             payment: { ...p.payment, amountReceived: received, status, configured: true },
             distributions: [
-              { ...distribution, id: `d_${uid()}`, createdBy: activeUserId },
+              { ...distribution, id: `d_${uid()}`, cashEntryId, createdBy: activeUserId },
               ...p.distributions,
             ],
           },
@@ -509,7 +517,12 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     setNotes((prev) => [...prev, { ...note, id: `n_${uid()}` }]);
   }, []);
 
+  const deleteNote = useCallback<Actions["deleteNote"]>((noteId) => {
+    setNotes((prev) => prev.filter((note) => note.id !== noteId));
+  }, []);
+
   const addCashEntry = useCallback<Actions["addCashEntry"]>((entry) => {
+    const id = `c_${uid()}`;
     if (entry.projectId && entry.entryType === "deposit") {
       patchProject(entry.projectId, (p) => {
         const received = p.payment.amountReceived + entry.amount;
@@ -521,6 +534,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
             paymentsReceived: [
               {
                 id: `pr_${uid()}`,
+                cashEntryId: id,
                 date: entry.date,
                 amount: entry.amount,
                 ...(entry.proof ? { proof: entry.proof } : {}),
@@ -543,6 +557,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
           ...p,
           distributions: [{
             id: `cash_${uid()}`,
+            cashEntryId: id,
             date: entry.date,
             amountReceived: 0,
             perPerson: p.payment.perPersonRate,
@@ -554,7 +569,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       }
     }
     setCash((prev) => [
-      { ...entry, id: `c_${uid()}`, createdBy: activeUserId, createdAt: new Date().toISOString() },
+      { ...entry, id, createdBy: activeUserId, createdAt: new Date().toISOString() },
       ...prev,
     ]);
     notify(`${entry.entryType === "deposit" ? "Credited" : "Debited"} ${inr(entry.amount)}${entry.takenBy || entry.putBy ? ` — ${entry.takenBy || entry.putBy}` : ""}`, "money");
@@ -562,8 +577,41 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
 
   const updateCashEntry = useCallback<Actions["updateCashEntry"]>((entryId, entry) => {
     const editedAt = new Date().toISOString();
-    setCash((prev) => prev.map((e) => (e.id === entryId ? { ...e, ...entry, date: iso(new Date()), editedAt } : e)));
-  }, []);
+    const existing = cash.find((item) => item.id === entryId);
+    if (existing?.projectId) {
+      patchProject(existing.projectId, (p) => {
+        const oldReceived = existing.entryType === "deposit" ? existing.amount : 0;
+        const newReceived = entry.projectId === p.id && entry.entryType === "deposit" ? entry.amount : 0;
+        const oldDistribution = existing.entryType === "expense" ? existing.amount : 0;
+        const recipient = users.find((user) => user.name.toLowerCase() === (entry.takenBy ?? "").trim().toLowerCase());
+        const nextDistribution = entry.projectId === p.id && entry.entryType === "expense" && recipient && p.memberIds.includes(recipient.id) ? entry.amount : 0;
+        let payment = p.payment;
+        let paymentsReceived = p.paymentsReceived;
+        let distributions = p.distributions;
+        if (oldReceived || newReceived) {
+          const amountReceived = Math.max(0, p.payment.amountReceived - oldReceived + newReceived);
+          payment = { ...p.payment, amountReceived, status: p.payment.invoiceAmount > 0 && amountReceived >= p.payment.invoiceAmount ? "paid" : amountReceived > 0 ? "partial" : "pending" };
+          paymentsReceived = paymentsReceived.filter((item) => item.cashEntryId !== entryId);
+          if (newReceived) paymentsReceived = [{ id: `pr_${uid()}`, cashEntryId: entryId, date: entry.date, amount: entry.amount, ...(entry.proof ? { proof: entry.proof } : {}), note: entry.note || "Added from cashbook", createdBy: activeUserId }, ...paymentsReceived];
+        }
+        if (oldDistribution || nextDistribution) {
+          distributions = distributions.filter((item) => item.cashEntryId !== entryId);
+          if (nextDistribution && recipient) distributions = [{ id: `cash_${uid()}`, cashEntryId: entryId, date: entry.date, amountReceived: 0, perPerson: p.payment.perPersonRate, allocations: [{ userId: recipient.id, videoNames: [], amount: entry.amount }], unmatched: [], createdBy: activeUserId }, ...distributions];
+        }
+        return { ...p, payment, paymentsReceived, distributions };
+      });
+    }
+    if (entry.projectId && entry.projectId !== existing?.projectId) {
+      // Reuse the normal linkage rules for a newly assigned project.
+      const id = entryId;
+      if (entry.entryType === "deposit") patchProject(entry.projectId, (p) => ({ ...p, payment: { ...p.payment, amountReceived: p.payment.amountReceived + entry.amount, status: p.payment.invoiceAmount > 0 && p.payment.amountReceived + entry.amount >= p.payment.invoiceAmount ? "paid" : "partial", configured: true }, paymentsReceived: [{ id: `pr_${uid()}`, cashEntryId: id, date: entry.date, amount: entry.amount, ...(entry.proof ? { proof: entry.proof } : {}), note: entry.note || "Added from cashbook", createdBy: activeUserId }, ...p.paymentsReceived] }));
+      if (entry.entryType === "expense") {
+        const recipient = users.find((user) => user.name.toLowerCase() === (entry.takenBy ?? "").trim().toLowerCase());
+        if (recipient) patchProject(entry.projectId, (p) => p.memberIds.includes(recipient.id) ? { ...p, distributions: [{ id: `cash_${uid()}`, cashEntryId: id, date: entry.date, amountReceived: 0, perPerson: p.payment.perPersonRate, allocations: [{ userId: recipient.id, videoNames: [], amount: entry.amount }], unmatched: [], createdBy: activeUserId }, ...p.distributions] } : p);
+      }
+    }
+    setCash((prev) => prev.map((e) => (e.id === entryId ? { ...e, ...entry, editedAt } : e)));
+  }, [cash, patchProject, users, activeUserId]);
 
   const setCashSettled = useCallback<Actions["setCashSettled"]>((entryId, settled) => {
     setCash((prev) => prev.map((e) => (e.id === entryId ? { ...e, isSettled: settled } : e)));
@@ -660,12 +708,14 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       setDeductionMark,
       updateProjectDetails,
       setProjectPinned,
+      setThemePreference,
       deleteProject,
       updatePayment,
       addPaymentReceived,
       setProjectSetting,
       addDistribution,
       addNote,
+      deleteNote,
       addCashEntry,
       updateCashEntry,
       setCashSettled,
@@ -697,12 +747,14 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     setDeductionMark,
     updateProjectDetails,
     setProjectPinned,
+    setThemePreference,
     deleteProject,
     updatePayment,
     addPaymentReceived,
     setProjectSetting,
     addDistribution,
     addNote,
+    deleteNote,
     addCashEntry,
     updateCashEntry,
     setCashSettled,

@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { FileText, Pin, Plus, Trash2 } from "lucide-react";
+import { CheckCircle2, FileText, Pin, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -354,6 +354,11 @@ function ProjectsPage() {
                         <FileText className="size-3.5" />
                       </Link>
                     </Button>
+                    {p.isCompleted ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-status-approved/15 px-2.5 py-1 text-[11px] font-semibold text-status-approved">
+                        <CheckCircle2 className="size-3.5" /> Completed
+                      </span>
+                    ) : null}
                     <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium capitalize text-muted-foreground">
                       {p.visibility}
                     </span>

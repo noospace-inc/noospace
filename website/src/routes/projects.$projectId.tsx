@@ -1,5 +1,5 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
-import { ArrowLeft, Check, FileText, Pencil, Plus, Settings2, Trash2, Wallet, X } from "lucide-react";
+import { ArrowLeft, Check, CheckCircle2, FileText, Pencil, Plus, Settings2, Trash2, Wallet, X } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AvatarGroup,
@@ -352,6 +353,11 @@ function ProjectDetail() {
                   <span className="rounded-full bg-secondary px-2.5 py-1 text-[11px] font-medium capitalize text-muted-foreground">
                     {project.visibility}
                   </span>
+                  {project.isCompleted ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-status-approved/15 px-2.5 py-1 text-[11px] font-semibold text-status-approved">
+                      <CheckCircle2 className="size-3.5" /> Completed
+                    </span>
+                  ) : null}
                   {project.isVideoProject ? (
                     <span className="rounded-full bg-brand-lilac-soft px-2.5 py-1 text-[11px] font-medium">Video editing</span>
                   ) : null}
@@ -379,6 +385,22 @@ function ProjectDetail() {
             ) : null}
           </div>
           <div className="w-full shrink-0 rounded-2xl bg-secondary/60 p-3 md:w-40 md:bg-transparent md:p-0">
+            {canManageProject ? (
+              <div className="mb-3 flex items-center justify-between gap-3 md:justify-end">
+                <Label htmlFor="project-completed" className="text-[11px] font-medium text-muted-foreground md:text-right">
+                  Mark project completed
+                </Label>
+                <Switch
+                  id="project-completed"
+                  checked={Boolean(project.isCompleted)}
+                  onCheckedChange={(checked) => {
+                    updateProjectDetails(project.id, { isCompleted: checked }, checked ? "Marked project as completed" : "Reopened project");
+                    toast.success(checked ? "Project marked completed" : "Project reopened");
+                  }}
+                  aria-label="Mark project as completed"
+                />
+              </div>
+            ) : null}
             <div className="mb-2 flex items-baseline justify-between gap-3 md:block">
               <p className="text-2xl font-bold sm:text-3xl md:text-right">{stats.completion}%</p>
               <p className="text-[11px] text-muted-foreground md:text-right">complete</p>

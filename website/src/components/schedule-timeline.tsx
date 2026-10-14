@@ -430,6 +430,23 @@ export function ScheduleTimeline({
                     </button>
                   ) : null}
                   <StatusPill status={liveTask.status} />
+                  {isLeader || currentUser.id === liveTask.userId ? (
+                    <Button size="sm" variant="secondary" className="h-8 rounded-full px-3" onClick={() => {
+                      if (mode === "manage" && isLeader) updateTask(project.id, liveTask.id, draft[liveTask.id] ?? liveTask.label);
+                      setTaskProof(project.id, liveTask.id, (proofDraft[liveTask.id] ?? liveTask.proof ?? "").trim());
+                      toast.success("Task saved");
+                    }}>Save</Button>
+                  ) : null}
+                  {mode === "manage" && isLeader ? (
+                    <Button size="sm" variant="destructive" className="h-8 rounded-full px-3" onClick={() => {
+                      if (!liveSchedule || !window.confirm("Delete this task?")) return;
+                      const willRemoveSchedule = liveSchedule.tasks.length <= 1;
+                      deleteTask(project.id, liveSchedule.id, liveTask.id);
+                      toast.success(willRemoveSchedule ? "Task deleted and empty schedule removed" : "Task deleted");
+                      if (willRemoveSchedule) { setOpenId(null); setSlide(0); }
+                      else setSlide((s) => Math.max(0, Math.min(s, liveSchedule.tasks.length - 2)));
+                    }}><Trash2 className="mr-1 size-3.5" /> Delete</Button>
+                  ) : null}
                 </div>
               </div>
 
@@ -441,34 +458,6 @@ export function ScheduleTimeline({
                     rows={3}
                     className="min-h-20 min-w-0 flex-1 resize-y rounded-xl"
                   />
-                  <Button
-                    variant="secondary"
-                    className="rounded-xl"
-                    onClick={() => {
-                      updateTask(project.id, liveTask.id, draft[liveTask.id] ?? liveTask.label);
-                      toast.success("Task updated — change flagged on the project timeline");
-                    }}
-                  >
-                    Save
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    className="rounded-xl"
-                    onClick={() => {
-                      if (!liveSchedule || !window.confirm("Delete this task?")) return;
-                      const willRemoveSchedule = liveSchedule.tasks.length <= 1;
-                      deleteTask(project.id, liveSchedule.id, liveTask.id);
-                      toast.success(willRemoveSchedule ? "Task deleted and empty schedule removed" : "Task deleted");
-                      if (willRemoveSchedule) {
-                        setOpenId(null);
-                        setSlide(0);
-                      } else {
-                        setSlide((s) => Math.max(0, Math.min(s, liveSchedule.tasks.length - 2)));
-                      }
-                    }}
-                  >
-                    <Trash2 className="mr-1 size-3.5" /> Delete
-                  </Button>
                 </div>
               ) : (
                 <p className="mt-3 whitespace-pre-wrap break-words text-sm">{liveTask.label}</p>
@@ -505,16 +494,6 @@ export function ScheduleTimeline({
                       className="h-9 rounded-xl"
                       onChange={(e) => setProofDraft({ ...proofDraft, [liveTask.id]: e.target.value })}
                     />
-                    <Button
-                      variant="secondary"
-                      className="h-9 rounded-xl"
-                      onClick={() => {
-                        setTaskProof(project.id, liveTask.id, (proofDraft[liveTask.id] ?? "").trim());
-                        toast.success("Proof saved");
-                      }}
-                    >
-                      <CheckCircle2 className="mr-1 size-3.5" /> Save
-                    </Button>
                   </div>
                 ) : null}
               </div>

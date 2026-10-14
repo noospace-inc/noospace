@@ -23,6 +23,7 @@ export type User = {
   punctuality: number;
   links: PropLink[];
   profileVisibility: "public" | "private";
+  theme?: "light" | "dark";
 };
 
 export type Task = {
@@ -65,6 +66,7 @@ export type PaymentDetails = {
 
 export type PaymentReceived = {
   id: string;
+  cashEntryId?: string;
   date: string;
   amount: number;
   proof?: string;
@@ -96,6 +98,7 @@ export type Allocation = {
 
 export type Distribution = {
   id: string;
+  cashEntryId?: string;
   date: string;
   amountReceived: number;
   perPerson: number;
@@ -108,6 +111,7 @@ export type Project = {
   id: string;
   /** Most recently pinned first; omitted for unpinned projects. */
   pinnedAt?: number;
+  isCompleted?: boolean;
   name: string;
   description: string;
   visibility: "public" | "private";

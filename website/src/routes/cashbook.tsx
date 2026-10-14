@@ -280,7 +280,7 @@ function CashbookPage() {
                             {typeMeta[e.entryType].label}
                           </span>
                         </div>
-                        <p className="mt-1 truncate text-[10px] text-muted-foreground">Project: {projectName(e)} · Entry by {enteredBy(e)} · {e.editedAt ? `Edited ${new Date(e.editedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}` : new Date(e.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
+                        <p className="mt-1 truncate text-[10px] text-muted-foreground">Project: {projectName(e)} · Entry by {enteredBy(e)} · {e.editedAt ? `Edited ${new Date(e.editedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}` : new Date(e.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
                         {e.note ? <p className="mt-1 truncate text-[11px] text-muted-foreground">{e.note}</p> : null}
                       </button>
                     </li>

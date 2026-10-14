@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Trash2 } from "lucide-react";
 
 import { StatusPill, Surface, accent } from "@/components/ui-bits";
 import { addDays, type Importance } from "@/lib/mock-data";
@@ -24,7 +24,7 @@ const importanceStyle: Record<Importance, string> = {
 
 function CalendarDayPage() {
   const { date } = Route.useParams();
-  const { projects, notes, currentUser } = useStore();
+  const { projects, notes, currentUser, deleteNote } = useStore();
   const userMap = useUserMap();
 
   const dayNotes = notes.filter((n) => n.date === date && canViewCalendarNote(n, currentUser, projects));
@@ -65,8 +65,13 @@ function CalendarDayPage() {
         ) : (
           <div className="space-y-3">
             {dayNotes.map((n) => (
-              <div key={n.id} className={cn("rounded-2xl px-4 py-3 text-sm font-semibold", importanceStyle[n.importance])}>
-                {n.title}
+              <div key={n.id} className={cn("flex items-center justify-between gap-2 rounded-2xl px-4 py-3 text-sm font-semibold", importanceStyle[n.importance])}>
+                <span className="min-w-0 truncate">{n.title}</span>
+                {currentUser.role === "admin" || n.createdBy === currentUser.id ? (
+                  <button type="button" aria-label={`Delete marked date ${n.title}`} onClick={() => deleteNote(n.id)} className="shrink-0 rounded-full p-1 hover:bg-black/10">
+                    <Trash2 className="size-4" />
+                  </button>
+                ) : null}
               </div>
             ))}
             {items.map((item) => (

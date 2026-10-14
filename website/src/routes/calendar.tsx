@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays, ChevronLeft, ChevronRight, Columns3, ListTodo, Plus } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Columns3, ListTodo, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -124,7 +124,7 @@ function MarkDateDialog() {
 }
 
 function CalendarPage() {
-  const { projects, notes, currentUser } = useStore();
+  const { projects, notes, currentUser, deleteNote } = useStore();
   const userMap = useUserMap();
   const [view, setView] = useState<CalendarView>("month");
   const [selectedDate, setSelectedDate] = useState(iso(new Date()));
@@ -322,18 +322,18 @@ function CalendarPage() {
               ))}
             </div>
           ) : (
-            <DayList date={selectedDate} notes={selectedNotes} items={selectedItems} userMap={userMap} />
+            <DayList date={selectedDate} notes={selectedNotes} items={selectedItems} userMap={userMap} currentUser={currentUser} onDeleteNote={deleteNote} />
           )}
         </Surface>
 
         <Surface>
           <SectionTitle title="Today's events" />
           {todayItems.length || todayNotes.length ? (
-            <DayList date={today} notes={todayNotes} items={todayItems} userMap={userMap} compact />
+            <DayList date={today} notes={todayNotes} items={todayItems} userMap={userMap} currentUser={currentUser} onDeleteNote={deleteNote} compact />
           ) : nextUpcoming ? (
             <div>
               <p className="mb-3 text-xs text-muted-foreground">Next upcoming: {nextUpcoming}</p>
-              <DayList date={nextUpcoming} notes={noteItems(nextUpcoming)} items={scheduleItems(nextUpcoming)} userMap={userMap} compact />
+              <DayList date={nextUpcoming} notes={noteItems(nextUpcoming)} items={scheduleItems(nextUpcoming)} userMap={userMap} currentUser={currentUser} onDeleteNote={deleteNote} compact />
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">No upcoming events.</p>
@@ -349,6 +349,8 @@ function DayList({
   notes,
   items,
   userMap,
+  currentUser,
+  onDeleteNote,
   compact,
 }: {
   date: string;
@@ -362,6 +364,8 @@ function DayList({
       }[]
     : never;
   userMap: ReturnType<typeof useUserMap>;
+  currentUser: ReturnType<typeof useStore>["currentUser"];
+  onDeleteNote: (noteId: string) => void;
   compact?: boolean;
 }) {
   return (
@@ -379,8 +383,13 @@ function DayList({
         ) : null}
       </div>
       {notes.map((n) => (
-        <div key={n.id} className={cn("rounded-2xl px-3 py-2 text-xs font-semibold", importanceStyle[n.importance])}>
-          {n.title}
+        <div key={n.id} className={cn("flex items-center justify-between gap-2 rounded-2xl px-3 py-2 text-xs font-semibold", importanceStyle[n.importance])}>
+          <span className="min-w-0 truncate">{n.title}</span>
+          {currentUser.role === "admin" || n.createdBy === currentUser.id ? (
+            <button type="button" aria-label={`Delete marked date ${n.title}`} onClick={() => onDeleteNote(n.id)} className="shrink-0 rounded-full p-1 hover:bg-black/10">
+              <Trash2 className="size-3.5" />
+            </button>
+          ) : null}
         </div>
       ))}
       {items.map((item) => (

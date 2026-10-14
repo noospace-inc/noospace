@@ -58,8 +58,8 @@ function LoginPage() {
       const result = await response.json().catch(() => null) as { error?: string; diagnostic?: string } | null;
       if (!response.ok) {
         if (result?.diagnostic) console.error("Google sign-in server diagnostic", result.diagnostic);
-        if (result?.diagnostic) setError(`${result.error ?? "Google sign-in failed."} Server detail: ${result.diagnostic}`);
-        throw new Error(result?.error ?? "Google sign-in failed. Please try again.");
+        const message = result?.error ?? "Google sign-in failed. Please try again.";
+        throw new Error(result?.diagnostic ? `${message} Server detail: ${result.diagnostic}` : message);
       }
       await navigate({ to: "/", replace: true });
     } catch (cause) {

@@ -95,16 +95,24 @@ async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
     links: [],
     profileVisibility: "public",
   };
-  await env.DATABASE.prepare(
-    `UPDATE workspace_state
-     SET data = json_insert(data, '$.users[#]', json(?)), updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?
-       AND NOT EXISTS (
-         SELECT 1 FROM json_each(workspace_state.data, '$.users') AS saved_user
-         WHERE json_extract(saved_user.value, '$.id') = ?
-            OR lower(json_extract(saved_user.value, '$.email')) = lower(?)
-       )`,
-  ).bind(JSON.stringify(user), "default", user.id, identity.email).run();
+  // Use a compare-and-swap update so login never overwrites workspace changes
+  // made by another request while we are adding the account.
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const row = await env.DATABASE.prepare("SELECT data FROM workspace_state WHERE id = ?")
+      .bind("default").first() as { data: string } | null;
+    if (!row) throw new Error("Workspace state could not be initialized.");
+
+    const snapshot = JSON.parse(row.data) as WorkspaceSnapshot;
+    const savedUsers = Array.isArray(snapshot.users) ? snapshot.users : [];
+    if (savedUsers.some((savedUser) => savedUser.id === user.id || savedUser.email.toLowerCase() === identity.email.toLowerCase())) return;
+
+    const next = { ...snapshot, users: [...savedUsers, user] };
+    const result = await env.DATABASE.prepare(
+      "UPDATE workspace_state SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND data = ?",
+    ).bind(JSON.stringify(next), "default", row.data).run();
+    if (result.meta?.changes === 1) return;
+  }
+  throw new Error("Workspace changed repeatedly while saving the new account.");
 }
 
 function canIdentityViewNote(

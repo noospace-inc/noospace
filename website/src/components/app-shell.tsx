@@ -64,8 +64,8 @@ export function AppShell({ children, onSignOut }: { children: ReactNode; onSignO
           <aside className="sticky top-5 hidden h-[calc(100vh-2.5rem)] shrink-0 md:block">
             <div className="flex h-full w-16 flex-col items-center justify-between rounded-3xl bg-sidebar py-4 shadow-card">
               <div className="flex flex-col items-center gap-2">
-                <Link to="/" className="mb-3 grid size-10 place-items-center rounded-2xl bg-primary">
-                  <span className="text-sm font-black text-primary-foreground">N</span>
+                <Link to="/" aria-label="Noospace dashboard" className="mb-3 grid size-10 place-items-center overflow-hidden rounded-2xl bg-primary">
+                  <img src="/favicon.png" alt="" className="size-full object-cover" />
                 </Link>
                 {items.map((item) => {
                   const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);

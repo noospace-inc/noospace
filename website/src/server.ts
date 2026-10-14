@@ -356,8 +356,14 @@ export default {
       if (url.pathname.startsWith("/api/auth/")) return await handleAuthApi(request, resolveDatabaseEnv(request, env as DatabaseEnv | undefined));
       if (url.pathname === "/api/workspace") return await handleWorkspaceApi(request, env as DatabaseEnv | undefined);
       const handler = await getServerEntry();
-      const response = await handler.fetch(request, env, ctx);
-      return await normalizeCatastrophicSsrResponse(response);
+      const response = await normalizeCatastrophicSsrResponse(await handler.fetch(request, env, ctx));
+      if (response.headers.get("content-type")?.includes("text/html")) {
+        const headers = new Headers(response.headers);
+        headers.set("Cache-Control", "no-store, max-age=0");
+        headers.set("CDN-Cache-Control", "no-store");
+        return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+      }
+      return response;
     } catch (error) {
       console.error(error);
       return new Response(renderErrorPage(), {

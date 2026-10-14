@@ -66,6 +66,47 @@ async function isRevokedIdentity(env: DatabaseEnv, identity: GoogleIdentity) {
   );
 }
 
+async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
+  if (!env.DATABASE) throw new Error("Workspace database is not configured.");
+
+  const initial: WorkspaceSnapshot = {
+    users,
+    projects,
+    notes: calendarNotes,
+    audit: auditLog,
+    cash: cashbookEntries,
+    trend: punctualityTrend,
+    revokedIdentities: [],
+  };
+  await env.DATABASE.prepare(
+    "INSERT INTO workspace_state (id, data, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(id) DO NOTHING",
+  ).bind("default", JSON.stringify(initial)).run();
+
+  const user = {
+    id: `google_${identity.id}`,
+    name: identity.name || identity.email,
+    email: identity.email,
+    role: "staff",
+    title: "Team member",
+    github: "",
+    bio: "",
+    accent: "blue",
+    punctuality: 100,
+    links: [],
+    profileVisibility: "public",
+  };
+  await env.DATABASE.prepare(
+    `UPDATE workspace_state
+     SET data = json_insert(data, '$.users[#]', json(?)), updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?
+       AND NOT EXISTS (
+         SELECT 1 FROM json_each(workspace_state.data, '$.users') AS saved_user
+         WHERE json_extract(saved_user.value, '$.id') = ?
+            OR lower(json_extract(saved_user.value, '$.email')) = lower(?)
+       )`,
+  ).bind(JSON.stringify(user), "default", user.id, identity.email).run();
+}
+
 function canIdentityViewNote(
   note: { isPrivate?: boolean; createdBy?: string; projectId?: string },
   identity: GoogleIdentity,
@@ -101,6 +142,12 @@ async function handleAuthApi(request: Request, env: DatabaseEnv) {
     try {
       const { identity, payload } = await verifyGoogleToken(body.credential, clientIdValue);
       if (await isRevokedIdentity(env, identity)) return Response.json({ error: "This account has been removed from the workspace. Contact an admin." }, { status: 403 });
+      try {
+        await ensureWorkspaceUser(env, identity);
+      } catch (error) {
+        console.error("Unable to create workspace user after Google sign-in", error);
+        return Response.json({ error: "Google sign-in succeeded, but the workspace account could not be saved. Please try again." }, { status: 503 });
+      }
       const maxAge = Math.max(0, Math.min((payload.exp ?? 0) - Math.floor(Date.now() / 1000), 3600));
       if (!maxAge) return Response.json({ error: "Google sign-in expired. Please try again." }, { status: 401 });
       return Response.json({ identity }, {

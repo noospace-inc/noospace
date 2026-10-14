@@ -14,6 +14,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  photoUrl?: string;
   role: Role;
   title: string;
   github: string;

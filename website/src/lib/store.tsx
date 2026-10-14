@@ -40,7 +40,7 @@ type State = {
 
 type RevokedIdentity = { id: string; email: string };
 
-export type AuthenticatedIdentity = { id: string; email: string; name: string };
+export type AuthenticatedIdentity = { id: string; email: string; name: string; picture?: string };
 
 export type NewProjectInput = Pick<
   Project,
@@ -103,6 +103,9 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       ?? users.find((user) => user.email.toLowerCase() === identity.email.toLowerCase());
     if (existing) {
       setActiveUserId(existing.id);
+      if (identity.picture && existing.photoUrl !== identity.picture) {
+        setUsers((current) => current.map((user) => user.id === existing.id ? { ...user, photoUrl: identity.picture } : user));
+      }
       return;
     }
     const id = `google_${identity.id}`;
@@ -111,6 +114,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       id,
       name: identity.name || identity.email,
       email: identity.email,
+      photoUrl: identity.picture,
       role: "staff",
       title: "Team member",
       github: "",

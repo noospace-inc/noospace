@@ -18,7 +18,7 @@ import { AppShell } from "@/components/app-shell";
 import { StoreProvider } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
 
-type AuthenticatedIdentity = { id: string; email: string; name: string };
+type AuthenticatedIdentity = { id: string; email: string; name: string; picture?: string };
 
 function NotFoundComponent() {
   return (

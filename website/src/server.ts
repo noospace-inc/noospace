@@ -33,7 +33,7 @@ function resolveDatabaseEnv(request: Request, runtimeEnv?: DatabaseEnv): Databas
 const googleKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const sessionCookieName = "noospace_google_session";
 
-type GoogleIdentity = { id: string; email: string; name: string };
+type GoogleIdentity = { id: string; email: string; name: string; picture?: string };
 
 function clientId(env: DatabaseEnv) {
   return env.GOOGLE_CLIENT_ID ?? import.meta.env["VITE_GOOGLE_CLIENT_ID"] ?? process.env["VITE_GOOGLE_CLIENT_ID"];
@@ -60,6 +60,7 @@ async function verifyGoogleToken(token: string, audience: string): Promise<{ ide
       id: payload.sub,
       email: payload["email"],
       name: typeof payload["name"] === "string" && payload["name"] ? payload["name"] : payload["email"],
+      picture: typeof payload["picture"] === "string" && payload["picture"].startsWith("https://") ? payload["picture"] : undefined,
     },
     payload,
   };
@@ -95,6 +96,7 @@ async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
     id: `google_${identity.id}`,
     name: identity.name || identity.email,
     email: identity.email,
+    photoUrl: identity.picture,
     role: "staff",
     title: "Team member",
     github: "",
@@ -113,7 +115,17 @@ async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
 
     const snapshot = JSON.parse(row.data) as WorkspaceSnapshot;
     const savedUsers = Array.isArray(snapshot.users) ? snapshot.users : [];
-    if (savedUsers.some((savedUser) => savedUser && typeof savedUser === "object" && (savedUser.id === user.id || (typeof savedUser.email === "string" && savedUser.email.toLowerCase() === identity.email.toLowerCase())))) return;
+    const existingIndex = savedUsers.findIndex((savedUser) => savedUser && typeof savedUser === "object" && (savedUser.id === user.id || (typeof savedUser.email === "string" && savedUser.email.toLowerCase() === identity.email.toLowerCase())));
+    if (existingIndex >= 0) {
+      if (!identity.picture || (savedUsers[existingIndex] as { photoUrl?: string }).photoUrl === identity.picture) return;
+      const nextUsers = [...savedUsers];
+      nextUsers[existingIndex] = { ...nextUsers[existingIndex]!, photoUrl: identity.picture };
+      const result = await env.DATABASE.prepare(
+        "UPDATE workspace_state SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND data = ?",
+      ).bind(JSON.stringify({ ...snapshot, users: nextUsers }), "default", row.data).run();
+      if (result.meta?.changes === 1) return;
+      continue;
+    }
 
     const next = { ...snapshot, users: [...savedUsers, user] };
     const result = await env.DATABASE.prepare(

@@ -2,6 +2,7 @@ import { Check, Copy, ExternalLink, Mail } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { toast } from "sonner";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { AccentKey, PropLink, TaskStatus, User } from "@/lib/mock-data";
 
@@ -45,17 +46,19 @@ export function Initials({ user, size = 32, className }: { user: User; size?: nu
     .slice(0, 2)
     .join("");
   return (
-    <span
+    <Avatar
       title={user.name}
       style={{ width: size, height: size, fontSize: size * 0.36 }}
       className={cn(
-        "inline-flex shrink-0 items-center justify-center rounded-full font-semibold text-foreground/80 ring-2 ring-card",
-        accent[user.accent].soft,
+        "ring-2 ring-card",
         className,
       )}
     >
-      {initials}
-    </span>
+      {user.photoUrl ? <AvatarImage src={user.photoUrl} alt={`${user.name}'s Google profile`} referrerPolicy="no-referrer" /> : null}
+      <AvatarFallback className={cn("font-semibold text-foreground/80", accent[user.accent].soft)}>
+        {initials}
+      </AvatarFallback>
+    </Avatar>
   );
 }
 

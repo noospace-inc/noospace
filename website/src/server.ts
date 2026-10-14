@@ -104,7 +104,7 @@ async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
 
     const snapshot = JSON.parse(row.data) as WorkspaceSnapshot;
     const savedUsers = Array.isArray(snapshot.users) ? snapshot.users : [];
-    if (savedUsers.some((savedUser) => savedUser.id === user.id || savedUser.email.toLowerCase() === identity.email.toLowerCase())) return;
+    if (savedUsers.some((savedUser) => savedUser.id === user.id || (typeof savedUser.email === "string" && savedUser.email.toLowerCase() === identity.email.toLowerCase()))) return;
 
     const next = { ...snapshot, users: [...savedUsers, user] };
     const result = await env.DATABASE.prepare(

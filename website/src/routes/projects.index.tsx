@@ -1,5 +1,5 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { FileText, Pin, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -292,8 +292,10 @@ function CreateProjectDialog() {
 }
 
 function ProjectsPage() {
-  const { projects } = useStore();
+  const { projects, setProjectPinned } = useStore();
   const userMap = useUserMap();
+  const navigate = useNavigate();
+  const orderedProjects = [...projects].sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
 
   return (
     <div className="space-y-4">
@@ -305,15 +307,48 @@ function ProjectsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {projects.map((p) => {
+        {orderedProjects.map((p) => {
           const stats = projectStats(p);
+          const openProject = () => navigate({ to: "/projects/$projectId", params: { projectId: p.id } });
           return (
-            <Surface key={p.id} hover className="h-full">
+            <Surface
+              key={p.id}
+              hover
+              className="h-full cursor-pointer"
+              role="link"
+              tabIndex={0}
+              aria-label={`Open project ${p.name}`}
+              onClick={(event) => {
+                if ((event.target as HTMLElement).closest("a, button")) return;
+                void openProject();
+              }}
+              onKeyDown={(event) => {
+                if (event.target !== event.currentTarget) return;
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  void openProject();
+                }
+              }}
+            >
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <span className={cn("grid size-10 place-items-center rounded-2xl text-xs font-bold", accent[p.accent].soft)}>
                     {p.name.slice(0, 2).toUpperCase()}
                   </span>
                   <div className="flex items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant={p.pinnedAt ? "secondary" : "ghost"}
+                      size="sm"
+                      className="h-8 rounded-full px-2.5 text-[11px]"
+                      aria-label={p.pinnedAt ? `Unpin ${p.name}` : `Pin ${p.name} to top`}
+                      onClick={() => {
+                        setProjectPinned(p.id, !p.pinnedAt);
+                        toast.success(p.pinnedAt ? "Project unpinned" : "Project pinned to top");
+                      }}
+                    >
+                      <Pin className={cn("mr-1 size-3.5", p.pinnedAt && "fill-current")} />
+                      {p.pinnedAt ? "Pinned" : "Pin to top"}
+                    </Button>
                     <Button asChild variant="ghost" size="icon" className="size-8 rounded-full">
                       <Link to="/projects/$projectId/advance" params={{ projectId: p.id }} aria-label={`Advance info for ${p.name}`}>
                         <FileText className="size-3.5" />

@@ -3,13 +3,14 @@ import { createRemoteJWKSet, jwtVerify, type JWTPayload } from "jose";
 
 import { consumeLastCapturedError } from "./lib/error-capture";
 import { renderErrorPage } from "./lib/error-page";
-import { auditLog, calendarNotes, cashbookEntries, projects, punctualityTrend, users } from "./lib/mock-data";
+import { auditLog, calendarNotes, cashbookEntries, projects, punctualityTrend, users, type WorkspaceNotification } from "./lib/mock-data";
 
 type WorkspaceSnapshot = {
   users: typeof users;
   projects: typeof projects;
   notes: typeof calendarNotes;
   audit: typeof auditLog;
+  notifications: WorkspaceNotification[];
   cash: typeof cashbookEntries;
   cashbookClearedAt?: string;
   trend: typeof punctualityTrend;
@@ -17,8 +18,8 @@ type WorkspaceSnapshot = {
 };
 
 type DatabaseEnv = {
-  DATABASE?: { prepare: (query: string) => any };
-  GOOGLE_CLIENT_ID?: string;
+  DATABASE?: { prepare: (query: string) => any } | undefined;
+  GOOGLE_CLIENT_ID?: string | undefined;
 };
 
 function resolveDatabaseEnv(request: Request, runtimeEnv?: DatabaseEnv): DatabaseEnv {
@@ -33,7 +34,7 @@ function resolveDatabaseEnv(request: Request, runtimeEnv?: DatabaseEnv): Databas
 const googleKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const sessionCookieName = "noospace_google_session";
 
-type GoogleIdentity = { id: string; email: string; name: string; picture?: string };
+type GoogleIdentity = { id: string; email: string; name: string; picture?: string | undefined };
 
 function clientId(env: DatabaseEnv) {
   return env.GOOGLE_CLIENT_ID ?? import.meta.env["VITE_GOOGLE_CLIENT_ID"] ?? process.env["VITE_GOOGLE_CLIENT_ID"];
@@ -84,6 +85,7 @@ async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
     projects,
     notes: calendarNotes,
     audit: auditLog,
+    notifications: [],
     cash: cashbookEntries,
     trend: punctualityTrend,
     revokedIdentities: [],
@@ -127,7 +129,8 @@ async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
       continue;
     }
 
-    const next = { ...snapshot, users: [...savedUsers, user] };
+    const notifications = Array.isArray(snapshot.notifications) ? snapshot.notifications : [];
+    const next = { ...snapshot, users: [...savedUsers, user], notifications: [{ id: `login_${identity.id}_${Date.now()}`, kind: "login", text: `${user.name} logged in for the first time`, at: new Date().toISOString() }, ...notifications].slice(0, 100) };
     const result = await env.DATABASE.prepare(
       "UPDATE workspace_state SET data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND data = ?",
     ).bind(JSON.stringify(next), "default", row.data).run();
@@ -251,7 +254,7 @@ async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): P
   if (!env.DATABASE) return Response.json({ error: "Database is not configured. Bind a Cloudflare D1 database named DATABASE." }, { status: 503 });
   if (request.method === "GET") {
     const row = await env.DATABASE.prepare("SELECT data FROM workspace_state WHERE id = ?").bind("default").first() as { data: string } | null;
-    const initial: WorkspaceSnapshot = { users, projects, notes: calendarNotes, audit: auditLog, cash: cashbookEntries, trend: punctualityTrend, revokedIdentities: [] };
+    const initial: WorkspaceSnapshot = { users, projects, notes: calendarNotes, audit: auditLog, cash: cashbookEntries, trend: punctualityTrend, notifications: [], revokedIdentities: [] };
     if (row) {
       const saved = JSON.parse(row.data) as Partial<WorkspaceSnapshot>;
       const snapshot: WorkspaceSnapshot = {
@@ -259,6 +262,7 @@ async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): P
         projects: Array.isArray(saved.projects) ? saved.projects : initial.projects,
         notes: Array.isArray(saved.notes) ? saved.notes : initial.notes,
         audit: Array.isArray(saved.audit) ? saved.audit : initial.audit,
+        notifications: Array.isArray(saved.notifications) ? saved.notifications : initial.notifications,
         cash: Array.isArray(saved.cash) ? saved.cash : initial.cash,
         trend: Array.isArray(saved.trend) ? saved.trend : initial.trend,
         revokedIdentities: Array.isArray(saved.revokedIdentities) ? saved.revokedIdentities : initial.revokedIdentities,
@@ -297,6 +301,7 @@ async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): P
     const nextSnapshot = {
       ...snapshot,
       cash,
+      notifications: Array.isArray(snapshot.notifications) ? snapshot.notifications : existing.notifications ?? [],
       ...(cashbookClearedAt ? { cashbookClearedAt } : {}),
       notes: [...visibleSubmittedNotes, ...hiddenExistingNotes.filter((note) => !submittedIds.has(note.id))],
       revokedIdentities: Array.isArray(snapshot.revokedIdentities) ? snapshot.revokedIdentities : existing.revokedIdentities ?? [],

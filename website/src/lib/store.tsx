@@ -26,6 +26,7 @@ import {
   type Role,
   type Schedule,
   type User,
+  type WorkspaceNotification,
 } from "./mock-data";
 
 type State = {
@@ -36,6 +37,7 @@ type State = {
   cash: CashEntry[];
   currentUser: User;
   trend: typeof seedTrend;
+  notifications: WorkspaceNotification[];
 };
 
 type RevokedIdentity = { id: string; email: string };
@@ -60,6 +62,7 @@ type Actions = {
   deleteTask: (projectId: string, scheduleId: string, taskId: string) => void;
   setDeductionMark: (projectId: string, value: number) => void;
   updateProjectDetails: (projectId: string, patch: Partial<Project>, summary: string) => void;
+  setProjectPinned: (projectId: string, pinned: boolean) => void;
   deleteProject: (projectId: string) => Promise<void>;
   updatePayment: (projectId: string, patch: Partial<PaymentDetails>, summary: string) => void;
   addPaymentReceived: (projectId: string, payment: Omit<PaymentReceived, "id" | "createdBy">) => void;
@@ -87,6 +90,8 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
   const [audit, setAudit] = useState<AuditEntry[]>(seedAudit);
   const [cash, setCash] = useState<CashEntry[]>(seedCash);
   const [trend, setTrend] = useState<typeof seedTrend>(seedTrend);
+  const [notifications, setNotifications] = useState<WorkspaceNotification[]>([]);
+  const notify = useCallback((text: string, kind: WorkspaceNotification["kind"]) => setNotifications((items) => [{ id: `n_${uid()}`, text, kind, at: new Date().toISOString() }, ...items].slice(0, 100)), []);
   const [revokedIdentities, setRevokedIdentities] = useState<RevokedIdentity[]>([]);
   const [databaseReady, setDatabaseReady] = useState(false);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -104,7 +109,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     if (existing) {
       setActiveUserId(existing.id);
       if (identity.picture && existing.photoUrl !== identity.picture) {
-        setUsers((current) => current.map((user) => user.id === existing.id ? { ...user, photoUrl: identity.picture } : user));
+        setUsers((current) => current.map((user) => user.id === existing.id ? { ...user, ...(identity.picture ? { photoUrl: identity.picture } : {}) } : user));
       }
       return;
     }
@@ -114,7 +119,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       id,
       name: identity.name || identity.email,
       email: identity.email,
-      photoUrl: identity.picture,
+      ...(identity.picture ? { photoUrl: identity.picture } : {}),
       role: "staff",
       title: "Team member",
       github: "",
@@ -124,7 +129,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       links: [],
       profileVisibility: "public",
     }, ...current]);
-  }, [identity, databaseReady, users, revokedIdentities]);
+  }, [identity, databaseReady, users, revokedIdentities, notify]);
 
   useEffect(() => {
     let active = true;
@@ -133,7 +138,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
         if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Unable to load saved workspace data");
         return response.json();
       })
-      .then((data: { users: User[]; projects: Project[]; notes: CalendarNote[]; audit: AuditEntry[]; cash: CashEntry[]; trend: typeof seedTrend; revokedIdentities?: RevokedIdentity[] }) => {
+      .then((data: { users: User[]; projects: Project[]; notes: CalendarNote[]; audit: AuditEntry[]; cash: CashEntry[]; trend: typeof seedTrend; notifications?: WorkspaceNotification[]; revokedIdentities?: RevokedIdentity[] }) => {
         if (!active) return;
         setUsers(data.users);
         setProjects(data.projects);
@@ -141,6 +146,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
         setAudit(data.audit);
         setCash(data.cash);
         setTrend(data.trend);
+        setNotifications(Array.isArray(data.notifications) ? data.notifications : []);
         setRevokedIdentities(Array.isArray(data.revokedIdentities) ? data.revokedIdentities : []);
         setDatabaseReady(true);
       })
@@ -155,7 +161,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
   useEffect(() => {
     if (!databaseReady) return;
     const timer = window.setTimeout(() => {
-      const snapshot = JSON.stringify({ users, projects, notes, audit, cash, trend, revokedIdentities });
+      const snapshot = JSON.stringify({ users, projects, notes, audit, cash, trend, notifications, revokedIdentities });
       saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
         const response = await fetch("/api/workspace", {
           method: "PUT",
@@ -171,7 +177,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [users, projects, notes, audit, cash, trend, revokedIdentities, databaseReady]);
+  }, [users, projects, notes, audit, cash, trend, notifications, revokedIdentities, databaseReady]);
 
   const patchProject = useCallback((projectId: string, fn: (p: Project) => Project) => {
     setProjects((prev) => prev.map((p) => (p.id === projectId ? fn(p) : p)));
@@ -212,6 +218,9 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
 
   const approveTask = useCallback<Actions["approveTask"]>(
     (projectId, taskId) => {
+      const project = projects.find((item) => item.id === projectId);
+      const task = project?.schedules.flatMap((schedule) => schedule.tasks).find((item) => item.id === taskId);
+      if (project && task && task.status !== "approved") notify(`Task completed: ${task.label} — ${project.name}`, "task");
       patchProject(projectId, (p) => ({
         ...p,
         schedules: p.schedules.map((s) => ({
@@ -220,7 +229,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
         })),
       }));
     },
-    [patchProject],
+    [patchProject, projects, notify],
   );
 
   const revertDeduction = useCallback<Actions["revertDeduction"]>(
@@ -298,6 +307,8 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
 
   const addSchedule = useCallback<Actions["addSchedule"]>(
     (projectId, schedule) => {
+      const project = projects.find((item) => item.id === projectId);
+      if (project) notify(`Task schedule added for ${project.name}, starting ${schedule.startDate}`, "schedule");
       patchProject(projectId, (p) => ({
         ...p,
         schedules: [...p.schedules, { ...schedule, id: `s_${uid()}` }].sort((a, b) =>
@@ -305,7 +316,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
         ),
       }));
     },
-    [patchProject],
+    [patchProject, projects, notify],
   );
 
   const shiftSchedule = useCallback<Actions["shiftSchedule"]>(
@@ -356,6 +367,20 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     [patchProject, logged],
   );
 
+  const setProjectPinned = useCallback<Actions["setProjectPinned"]>((projectId, pinned) => {
+    setProjects((current) => {
+      const latestPin = current.reduce((latest, project) => Math.max(latest, project.pinnedAt ?? 0), 0);
+      const pinnedAt = Math.max(Date.now(), latestPin + 1);
+      return current.map((project) => {
+        if (project.id !== projectId) return project;
+        const updated = { ...project };
+        if (pinned) updated.pinnedAt = pinnedAt;
+        else delete updated.pinnedAt;
+        return updated;
+      });
+    });
+  }, []);
+
   const deleteProject = useCallback<Actions["deleteProject"]>(async (projectId) => {
     const nextProjects = projects.filter((project) => project.id !== projectId);
     const nextCash = cash.filter((entry) => entry.projectId !== projectId);
@@ -389,6 +414,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     (projectId, payment) =>
       patchProject(projectId, (p) => {
         const received = p.payment.amountReceived + payment.amount;
+        notify(`Credited ${inr(payment.amount)} — ${p.payment.clientName || p.name}`, "money");
         const status = p.payment.invoiceAmount > 0 && received >= p.payment.invoiceAmount ? "paid" : "partial";
         const entry = { ...payment, id: `pr_${uid()}`, createdBy: activeUserId };
         setCash((prev) => [
@@ -398,7 +424,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
             amount: payment.amount,
             projectId,
             takenBy: null,
-            putBy: p.payment.clientName || "Company",
+            putBy: p.payment.clientName || p.name,
             date: payment.date,
             note: payment.note || `Payment received for ${p.name}`,
             proof: payment.proof ?? "",
@@ -419,7 +445,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
           `Added payment received ${inr(payment.amount)}`,
         );
       }),
-    [patchProject, logged, activeUserId],
+    [patchProject, logged, activeUserId, notify],
   );
 
   const setProjectSetting = useCallback<Actions["setProjectSetting"]>(
@@ -434,10 +460,14 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     (projectId, distribution) =>
       patchProject(projectId, (p) => {
         const distributed = distribution.allocations.reduce((sum, a) => sum + a.amount, 0);
+        if (distributed > 0) notify(`Debited ${inr(distributed)} for ${p.name}`, "money");
         const received = p.payment.amountReceived + distribution.amountReceived;
         const status = received >= p.payment.invoiceAmount && p.payment.invoiceAmount > 0 ? "paid" : "partial";
         const memberNames = distribution.allocations
           .map((a) => `${users.find((u) => u.id === a.userId)?.name ?? "Unknown"} (${inr(a.amount)})`)
+          .join(", ");
+        const recipientNames = distribution.allocations
+          .map((a) => users.find((u) => u.id === a.userId)?.name ?? "Unknown")
           .join(", ");
         setCash((prev) => [
           {
@@ -445,7 +475,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
             entryType: "expense",
             amount: distributed,
             projectId,
-            takenBy: "Company expense",
+            takenBy: recipientNames,
             putBy: null,
             date: distribution.date,
             note: `Distributed to ${memberNames}`,
@@ -470,7 +500,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
           `Distributed ₹${distributed.toLocaleString("en-IN")} across ${distribution.allocations.length} members`,
         );
       }),
-    [patchProject, logged, users, activeUserId],
+    [patchProject, logged, users, activeUserId, notify],
   );
 
   const addNote = useCallback<Actions["addNote"]>((note) => {
@@ -507,7 +537,8 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       { ...entry, id: `c_${uid()}`, createdBy: activeUserId, createdAt: new Date().toISOString() },
       ...prev,
     ]);
-  }, [patchProject, logged, activeUserId]);
+    notify(`${entry.entryType === "deposit" ? "Credited" : "Debited"} ${inr(entry.amount)}${entry.takenBy || entry.putBy ? ` — ${entry.takenBy || entry.putBy}` : ""}`, "money");
+  }, [patchProject, logged, activeUserId, notify]);
 
   const updateCashEntry = useCallback<Actions["updateCashEntry"]>((entryId, entry) => {
     setCash((prev) => prev.map((e) => (e.id === entryId ? { ...e, ...entry } : e)));
@@ -592,6 +623,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       projects,
       notes,
       audit,
+      notifications,
       cash,
       currentUser,
       trend,
@@ -606,6 +638,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       deleteTask,
       setDeductionMark,
       updateProjectDetails,
+      setProjectPinned,
       deleteProject,
       updatePayment,
       addPaymentReceived,
@@ -627,6 +660,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     projects,
     notes,
     audit,
+    notifications,
     cash,
     trend,
     approveTask,
@@ -640,6 +674,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     deleteTask,
     setDeductionMark,
     updateProjectDetails,
+    setProjectPinned,
     deleteProject,
     updatePayment,
     addPaymentReceived,

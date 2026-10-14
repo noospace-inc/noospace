@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Initials, StatusPill, accent } from "@/components/ui-bits";
 import { addDays, iso, startOfWeek, type Project, type Schedule } from "@/lib/mock-data";
@@ -350,7 +351,7 @@ export function ScheduleTimeline({
                         <span className="text-muted-foreground"> · {s.days}d</span>
                       </TableCell>
                       <TableCell className="whitespace-nowrap text-xs">{userMap[t.userId]?.name ?? "—"}</TableCell>
-                      <TableCell className="min-w-[180px] text-xs">{t.label}</TableCell>
+                      <TableCell className="min-w-[180px] whitespace-pre-wrap break-words text-xs">{t.label}</TableCell>
                       <TableCell className="text-xs">
                         {t.proof ? (
                           <span className="inline-flex items-center gap-1">
@@ -434,10 +435,11 @@ export function ScheduleTimeline({
 
               {mode === "manage" && isLeader ? (
                 <div className="mt-3 flex gap-2">
-                  <Input
+                  <Textarea
                     value={draft[liveTask.id] ?? liveTask.label}
                     onChange={(e) => setDraft({ ...draft, [liveTask.id]: e.target.value })}
-                    className="rounded-xl"
+                    rows={3}
+                    className="min-h-20 min-w-0 flex-1 resize-y rounded-xl"
                   />
                   <Button
                     variant="secondary"
@@ -469,7 +471,7 @@ export function ScheduleTimeline({
                   </Button>
                 </div>
               ) : (
-                <p className="mt-3 text-sm">{liveTask.label}</p>
+                <p className="mt-3 whitespace-pre-wrap break-words text-sm">{liveTask.label}</p>
               )}
               {liveTask.edited ? (
                 <p className="mt-2 text-[11px] font-medium text-brand-lilac">● Edited since last publish</p>

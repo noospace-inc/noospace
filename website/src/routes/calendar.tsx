@@ -205,7 +205,7 @@ function CalendarPage() {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Surface>
+        <Surface className="min-w-0 overflow-hidden p-3 sm:p-5">
           <SectionTitle
             title={view === "month" ? monthLabel : view === "week" ? "Weekly view" : "Daily view"}
             action={
@@ -231,35 +231,42 @@ function CalendarPage() {
           />
 
           {view === "month" ? (
-            <div>
-              <div className="grid grid-cols-7 gap-1.5 pb-2 text-center text-[10px] font-semibold uppercase text-muted-foreground sm:gap-2 sm:text-[11px]">
-                {dayLabels.map((d) => (
-                  <span key={d}>{d}</span>
+            <div className="min-w-0">
+              <div className="grid min-w-0 grid-cols-7 gap-1 pb-2 text-center text-[9px] font-semibold uppercase text-muted-foreground sm:gap-2 sm:text-[11px]">
+                {dayLabels.map((day) => (
+                  <span key={day} className="min-w-0">
+                    <span className="sm:hidden">{day.slice(0, 2)}</span>
+                    <span className="hidden sm:inline">{day}</span>
+                  </span>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5 sm:gap-2">
+              <div className="grid min-w-0 grid-cols-7 gap-1 sm:gap-2">
                 {monthCells.map((date) => {
                   const inMonth = new Date(date + "T00:00:00").getMonth() === cursor.m;
                   const daySchedules = scheduleItems(date);
                   const dayNotes = noteItems(date);
+                  const taskCount = daySchedules.length;
                   return (
                     <button
                       key={date}
                       type="button"
+                      aria-label={`${new Date(date + "T00:00:00").toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}: ${taskCount} ${taskCount === 1 ? "task" : "tasks"}`}
                       onClick={() => {
                         setSelectedDate(date);
                         setView("day");
                       }}
                       className={cn(
-                        "min-h-14 rounded-xl p-1.5 text-left transition-colors sm:min-h-[104px] sm:rounded-2xl sm:p-2",
+                        "min-w-0 min-h-14 overflow-hidden rounded-lg p-1 text-left transition-colors hover:bg-accent sm:min-h-[104px] sm:rounded-2xl sm:p-2",
                         inMonth ? "bg-secondary/70" : "bg-secondary/30 text-muted-foreground",
                         date === today && "shadow-[0_0_0_2px_var(--color-brand-green),0_0_18px_oklch(0.66_0.13_155_/_0.45)]",
                       )}
                     >
                       <div className="flex items-center justify-between gap-1">
-                        <span className="text-xs font-bold">{Number(date.slice(8))}</span>
-                        {hasItems(date) ? <span className="size-2 rounded-full bg-primary sm:hidden" /> : null}
+                        <span className="text-[11px] font-bold sm:text-xs">{Number(date.slice(8))}</span>
                       </div>
+                      <p className="mt-1 truncate text-[8px] font-medium leading-tight text-muted-foreground sm:hidden">
+                        {taskCount} {taskCount === 1 ? "task" : "tasks"}
+                      </p>
                       <div className="mt-1 hidden space-y-1 sm:block">
                         {daySchedules.slice(0, 2).map((item) => (
                           <p key={item.id} className={cn("truncate rounded-lg px-1.5 py-1 text-[10px] font-medium", accent[item.project.accent].soft)}>

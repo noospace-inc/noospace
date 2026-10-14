@@ -60,6 +60,8 @@ const typeMeta: Record<CashEntryType, { label: string; sign: string; tone: strin
 const fmtDate = (d: string) =>
   new Date(d + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short" });
 
+const genericPartyLabels = new Set(["person", "company", "expense", "company expense"]);
+
 function CashbookPage() {
   const { cash, users, projects, currentUser, addCashEntry, updateCashEntry, setCashSettled } = useStore();
   const [filter, setFilter] = useState<FilterKey>("all");
@@ -71,9 +73,21 @@ function CashbookPage() {
   const longPressedEntry = useRef<string | null>(null);
 
   const totals = useMemo(() => cashTotals(cash), [cash]);
-  const people = useMemo(() => cashPeople(cash, ["Company", ...users.map((u) => u.name)]), [cash, users]);
+  const people = useMemo(() => cashPeople(cash, users.map((u) => u.name)), [cash, users]);
   const projectRows = useMemo(() => cashProjectTotals(cash, projects), [cash, projects]);
-  const projectMap = useMemo(() => Object.fromEntries(projects.map((p) => [p.id, p.name])) as Record<string, string>, [projects]);
+  const entryPerson = (entry: CashEntry) => {
+    const personOrCompany = entry.takenBy ?? entry.putBy;
+    const project = projects.find((item) => item.id === entry.projectId);
+    const party = personOrCompany?.trim() ?? "";
+    const normalizedParty = party.toLowerCase();
+    if (!genericPartyLabels.has(normalizedParty)) return party || "Name not recorded";
+    if (normalizedParty === "company expense" && entry.note.startsWith("Distributed to ")) {
+      return entry.note.slice("Distributed to ".length).replace(/\s*\([^)]*\)/g, "");
+    }
+    if (!project && entry.note.trim()) return entry.note.trim();
+    if (!project) return "Name not recorded";
+    return project?.payment.clientName.trim() || project?.name || "—";
+  };
   const canManageCash = currentUser.role === "admin";
 
   const monthPrefix = iso(new Date()).slice(0, 7);
@@ -219,7 +233,7 @@ function CashbookPage() {
                           {typeMeta[e.entryType].sign}
                           {inr(e.amount)}
                         </td>
-                        <td className="px-3 py-3 text-xs">{e.takenBy ?? e.putBy ?? "—"}</td>
+                        <td className="px-3 py-3 text-xs">{entryPerson(e)}</td>
                         <td className="max-w-[220px] truncate px-3 py-3 text-xs text-muted-foreground">{e.note}</td>
                         <td className="px-3 py-3 text-xs text-muted-foreground">
                           {e.proof ? <Paperclip className="size-3.5" /> : "—"}
@@ -264,7 +278,7 @@ function CashbookPage() {
                           <span className="text-[11px] text-muted-foreground">{fmtDate(e.date)}</span>
                         </div>
                         <div className="mt-1 flex items-center justify-between gap-2">
-                          <span className="truncate text-xs font-medium">{e.takenBy ?? e.putBy ?? "—"}</span>
+                          <span className="truncate text-xs font-medium">{entryPerson(e)}</span>
                           <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                             {typeMeta[e.entryType].label}
                           </span>
@@ -344,15 +358,27 @@ function CashbookPage() {
             {projectRows.length === 0 ? (
               <EmptyState title="No project money yet" description="Link a deposit or expense to a project to see its totals here." />
             ) : (
-              <div className="space-y-2">
-                {projectRows.map(({ project, deposited, distributed, balance }) => (
-                  <div key={project.id} className="grid gap-3 rounded-2xl bg-secondary/60 p-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center">
-                    <p className="truncate text-sm font-semibold">{project.name}</p>
-                    <p className="text-xs font-semibold text-status-approved">Deposited {inr(deposited)}</p>
-                    <p className="text-xs font-semibold text-status-overdue">Distributed {inr(distributed)}</p>
-                    <p className="text-sm font-bold">{inr(balance)} left</p>
-                  </div>
-                ))}
+              <div className="overflow-x-auto rounded-2xl border border-border/60">
+                <table className="w-full min-w-[600px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-secondary/40 text-left text-xs text-muted-foreground">
+                      <th scope="col" className="px-4 py-3 font-medium">Project</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">Deposited</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">Distributed</th>
+                      <th scope="col" className="px-4 py-3 text-right font-medium">Balance left</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {projectRows.map(({ project, deposited, distributed, balance }) => (
+                      <tr key={project.id} className="border-b border-border/60 last:border-0 hover:bg-secondary/30">
+                        <th scope="row" className="px-4 py-3 text-left text-sm font-semibold">{project.name}</th>
+                        <td className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-status-approved">{inr(deposited)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right text-xs font-semibold text-status-overdue">{inr(distributed)}</td>
+                        <td className="whitespace-nowrap px-4 py-3 text-right text-sm font-bold">{inr(balance)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </Surface>
@@ -377,7 +403,7 @@ function CashbookPage() {
           if (!next) setEditing(null);
         }}
         initialEntry={editing}
-        names={[...new Set([...users.map((u) => u.name), ...people.map((p) => p.name)])]}
+        names={[...new Set([...users.map((u) => u.name), ...people.map((p) => p.name)])].filter((name) => !genericPartyLabels.has(name.trim().toLowerCase()))}
         projects={projects}
         onSubmit={(entry) => {
           if (editing) {
@@ -402,7 +428,7 @@ function CashbookPage() {
                 {inr(detail.amount)}
               </p>
               <p className="text-xs text-muted-foreground">
-                {fmtDate(detail.date)} · {detail.takenBy ?? detail.putBy ?? "—"}
+                {fmtDate(detail.date)} · {entryPerson(detail)}
               </p>
               <p className="rounded-2xl bg-secondary/60 p-3 text-xs">{detail.note || "No note added."}</p>
               {detail.proof ? (
@@ -519,7 +545,8 @@ function AddEntrySheet({
     if (!open) return;
     setType(initialEntry?.entryType ?? "deposit");
     setAmount(initialEntry ? String(initialEntry.amount) : "");
-    setWho(initialEntry?.putBy ?? initialEntry?.takenBy ?? "");
+    const savedParty = initialEntry?.putBy ?? initialEntry?.takenBy ?? "";
+    setWho(genericPartyLabels.has(savedParty.trim().toLowerCase()) ? "" : savedParty);
     setDate(initialEntry?.date ?? iso(new Date()));
     setNote(initialEntry?.note ?? "");
     setProof(initialEntry?.proof ?? "");
@@ -532,15 +559,15 @@ function AddEntrySheet({
       toast.error("Enter an amount greater than zero");
       return;
     }
-    if (type !== "expense" && !who.trim()) {
-      toast.error("Pick the person for this entry");
+    if (!who.trim() || genericPartyLabels.has(who.trim().toLowerCase())) {
+      toast.error("Enter the person or company name for this entry");
       return;
     }
     onSubmit({
       entryType: type,
       amount: value,
       projectId: projectId || null,
-      takenBy: type === "expense" ? "Expense" : type === "withdrawal" ? who.trim() : null,
+      takenBy: type !== "deposit" ? who.trim() : null,
       putBy: type === "deposit" ? who.trim() : null,
       date,
       note: note.trim(),
@@ -594,26 +621,27 @@ function AddEntrySheet({
 
           {type === "expense" ? (
             <p className="flex items-center gap-2 rounded-2xl bg-secondary/60 px-3 py-2 text-xs text-muted-foreground">
-              <Receipt className="size-3.5" /> Logged against the “Expense” category — money is gone for good.
+              <Receipt className="size-3.5" /> Logged as an expense.
             </p>
-          ) : (
-            <div className="space-y-1.5">
-              <Label htmlFor="cash-person">{type === "deposit" ? "Put in by" : "Taken by"}</Label>
-              <Input
-                id="cash-person"
-                list="cash-people"
-                value={who}
-                onChange={(e) => setWho(e.target.value)}
-                placeholder="Search or add a person or company"
-                className="h-11 rounded-2xl"
-              />
-              <datalist id="cash-people">
-                {names.map((n) => (
-                  <option key={n} value={n} />
-                ))}
-              </datalist>
-            </div>
-          )}
+          ) : null}
+          <div className="space-y-1.5">
+            <Label htmlFor="cash-person">
+              {type === "deposit" ? "Put in by" : type === "expense" ? "Paid to (person or company)" : "Taken by"}
+            </Label>
+            <Input
+              id="cash-person"
+              list="cash-people"
+              value={who}
+              onChange={(e) => setWho(e.target.value)}
+              placeholder="Enter the actual person or company name"
+              className="h-11 rounded-2xl"
+            />
+            <datalist id="cash-people">
+              {names.map((n) => (
+                <option key={n} value={n} />
+              ))}
+            </datalist>
+          </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

@@ -106,6 +106,8 @@ export type Distribution = {
 
 export type Project = {
   id: string;
+  /** Most recently pinned first; omitted for unpinned projects. */
+  pinnedAt?: number;
   name: string;
   description: string;
   visibility: "public" | "private";
@@ -160,6 +162,8 @@ export type AuditEntry = {
   to: Role;
   at: string;
 };
+
+export type WorkspaceNotification = { id: string; text: string; at: string; kind: "login" | "task" | "schedule" | "money" };
 
 export const iso = (d: Date) => {
   const pad = (n: number) => n.toString().padStart(2, "0");

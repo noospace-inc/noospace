@@ -4,6 +4,7 @@ import {
   CalendarDays,
   FolderKanban,
   LayoutDashboard,
+  LogOut,
   Moon,
   Search,
   Shield,
@@ -15,14 +16,6 @@ import { useEffect, useState, type ReactNode } from "react";
 
 import { Initials } from "@/components/ui-bits";
 import { GlobalSearch } from "@/components/global-search";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
@@ -36,12 +29,6 @@ const nav = [
   { to: "/users", label: "Users & Roles", icon: Shield, adminOnly: true },
 ] as const;
 
-const notifications = [
-  { id: 1, text: "3 tasks are waiting for your approval on Aurora Design System" },
-  { id: 2, text: "Emily Carter received a -5 deduction on Storybook pipeline" },
-  { id: 3, text: "Client Portal Revamp final QA is due in 2 days" },
-];
-
 function useTheme() {
   const [dark, setDark] = useState(false);
   useEffect(() => {
@@ -51,7 +38,7 @@ function useTheme() {
 }
 
 export function AppShell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void | Promise<void> }) {
-  const { currentUser } = useStore();
+  const { currentUser, notifications } = useStore();
   const { dark, toggle } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -130,27 +117,10 @@ export function AppShell({ children, onSignOut }: { children: ReactNode; onSignO
                 >
                   <Search className="size-4" />
                 </button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Notifications"
-                      className="relative grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                    >
-                      <Bell className="size-4" />
-                      <span className="absolute right-2 top-2 size-2 rounded-full bg-brand-pink" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-80 rounded-2xl">
-                    <DropdownMenuLabel>Notifications</DropdownMenuLabel>
-                    <DropdownMenuSeparator />
-                    {notifications.map((n) => (
-                      <DropdownMenuItem key={n.id} className="whitespace-normal text-xs leading-relaxed">
-                        {n.text}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Link to="/notifications" aria-label="Notifications" className="relative grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
+                  <Bell className="size-4" />
+                  {notifications.length > 0 && <span className="absolute right-1 top-1 size-2 rounded-full bg-brand-pink" />}
+                </Link>
                 <button
                   type="button"
                   onClick={toggle}
@@ -159,23 +129,8 @@ export function AppShell({ children, onSignOut }: { children: ReactNode; onSignO
                 >
                   {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
                 </button>
-                {onSignOut ? (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button type="button" aria-label="Account menu" className="rounded-full">
-                        <Initials user={currentUser} size={32} />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="rounded-2xl">
-                      <DropdownMenuLabel>{currentUser.name}</DropdownMenuLabel>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem asChild><Link to="/profile">Profile</Link></DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => { void onSignOut(); }}>Sign out</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                ) : (
-                  <Link to="/profile" aria-label="Profile"><Initials user={currentUser} size={32} /></Link>
-                )}
+                <Link to="/profile" aria-label={`Profile: ${currentUser.name}`}><Initials user={currentUser} size={32} /></Link>
+                {onSignOut && <button type="button" aria-label="Sign out" title="Sign out" onClick={() => { void onSignOut(); }} className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"><LogOut className="size-4" /></button>}
               </div>
             </header>
             <main className="pb-10">{children}</main>

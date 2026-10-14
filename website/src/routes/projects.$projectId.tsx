@@ -115,11 +115,13 @@ function AddScheduleDialog({
                   </Button>
                 </div>
                 {(tasks[id] ?? []).map((value, i) => (
-                  <div key={i} className="mt-2 flex gap-2">
-                    <Input
+                  <div key={i} className="mt-2 flex items-start gap-2">
+                    <Textarea
                       value={value}
                       placeholder="Task description"
-                      className="rounded-xl bg-card"
+                      rows={6}
+                      aria-label={`Task description for ${userMap[id]?.name ?? "team member"}`}
+                      className="min-h-32 min-w-0 flex-1 resize-y rounded-xl bg-card"
                       onChange={(e) =>
                         setTasks({ ...tasks, [id]: (tasks[id] ?? []).map((v, vi) => (vi === i ? e.target.value : v)) })
                       }

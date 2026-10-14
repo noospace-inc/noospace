@@ -14,6 +14,7 @@ import { Route as CalendarRouteImport } from './routes/calendar'
 import { Route as CashbookRouteImport } from './routes/cashbook'
 import { Route as EmployeesRouteImport } from './routes/employees'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as UsersRouteImport } from './routes/users'
 import { Route as CalendarDateRouteImport } from './routes/calendar.$date'
@@ -45,6 +46,11 @@ const EmployeesRoute = EmployeesRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const NotificationsRoute = NotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProfileRoute = ProfileRouteImport.update({
@@ -91,6 +97,7 @@ export interface FileRoutesByFullPath {
   '/cashbook': typeof CashbookRoute
   '/employees': typeof EmployeesRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/users': typeof UsersRoute
   '/calendar/$date': typeof CalendarDateRoute
@@ -105,6 +112,7 @@ export interface FileRoutesByTo {
   '/cashbook': typeof CashbookRoute
   '/employees': typeof EmployeesRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/users': typeof UsersRoute
   '/calendar/$date': typeof CalendarDateRoute
@@ -120,6 +128,7 @@ export interface FileRoutesById {
   '/cashbook': typeof CashbookRoute
   '/employees': typeof EmployeesRoute
   '/login': typeof LoginRoute
+  '/notifications': typeof NotificationsRoute
   '/profile': typeof ProfileRoute
   '/users': typeof UsersRoute
   '/calendar/$date': typeof CalendarDateRoute
@@ -136,6 +145,7 @@ export interface FileRouteTypes {
     | '/cashbook'
     | '/employees'
     | '/login'
+    | '/notifications'
     | '/profile'
     | '/users'
     | '/calendar/$date'
@@ -150,6 +160,7 @@ export interface FileRouteTypes {
     | '/cashbook'
     | '/employees'
     | '/login'
+    | '/notifications'
     | '/profile'
     | '/users'
     | '/calendar/$date'
@@ -164,6 +175,7 @@ export interface FileRouteTypes {
     | '/cashbook'
     | '/employees'
     | '/login'
+    | '/notifications'
     | '/profile'
     | '/users'
     | '/calendar/$date'
@@ -179,6 +191,7 @@ export interface RootRouteChildren {
   CashbookRoute: typeof CashbookRoute
   EmployeesRoute: typeof EmployeesRoute
   LoginRoute: typeof LoginRoute
+  NotificationsRoute: typeof NotificationsRoute
   ProfileRoute: typeof ProfileRoute
   UsersRoute: typeof UsersRoute
   ProjectsProjectIdRoute: typeof ProjectsProjectIdRoute
@@ -222,6 +235,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/notifications': {
+      id: '/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof NotificationsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/profile': {
@@ -294,6 +314,7 @@ const rootRouteChildren: RootRouteChildren = {
   CashbookRoute: CashbookRoute,
   EmployeesRoute: EmployeesRoute,
   LoginRoute: LoginRoute,
+  NotificationsRoute: NotificationsRoute,
   ProfileRoute: ProfileRoute,
   UsersRoute: UsersRoute,
   ProjectsProjectIdRoute: ProjectsProjectIdRoute,

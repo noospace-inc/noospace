@@ -152,7 +152,7 @@ export function ScheduleTimeline({
         </div>
       </div>
       {mode === "manage" && view === "week" ? (
-        <p className="mb-2 hidden text-[11px] text-muted-foreground sm:block">Ctrl + click a future date to add a schedule</p>
+        <p className="mb-2 hidden text-[11px] text-muted-foreground sm:block">Ctrl + click any date to add a schedule</p>
       ) : null}
 
       {view === "week" ? (
@@ -168,12 +168,12 @@ export function ScheduleTimeline({
                 <div
                   key={d}
                   onClick={(e) => {
-                    if (mode === "manage" && e.ctrlKey && !past) onRequestCreate?.(d);
+                    if (mode === "manage" && e.ctrlKey) onRequestCreate?.(d);
                   }}
                   className={cn(
                     "relative rounded-2xl px-2 py-2 text-center transition-colors",
                     past ? "bg-secondary/60 text-muted-foreground" : "bg-secondary",
-                    mode === "manage" && !past && "cursor-pointer hover:bg-accent",
+                    mode === "manage" && "cursor-pointer hover:bg-accent",
                   )}
                 >
                   <p className="text-[10px] font-medium uppercase tracking-wide opacity-70">{dayLabels[i]}</p>

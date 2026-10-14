@@ -89,7 +89,7 @@ function AddScheduleDialog({
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <Label>Start date</Label>
-              <Input type="date" value={presetDate ?? date} min={iso(new Date())} onChange={(e) => setDate(e.target.value)} className="rounded-xl" />
+              <Input type="date" value={presetDate ?? date} onChange={(e) => setDate(e.target.value)} className="rounded-xl" />
             </div>
             <div className="space-y-1.5">
               <Label>Duration (days)</Label>

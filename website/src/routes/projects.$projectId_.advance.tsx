@@ -459,10 +459,14 @@ function AdvanceInfo() {
             <AlertDialogCancel>No, keep project</AlertDialogCancel>
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                deleteProject(project.id);
-                toast.success("Project deleted");
-                navigate({ to: "/projects" });
+              onClick={async () => {
+                try {
+                  await deleteProject(project.id);
+                  toast.success("Project deleted");
+                  navigate({ to: "/projects" });
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "Unable to delete project");
+                }
               }}
             >
               Yes, delete project

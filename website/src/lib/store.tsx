@@ -60,7 +60,7 @@ type Actions = {
   deleteTask: (projectId: string, scheduleId: string, taskId: string) => void;
   setDeductionMark: (projectId: string, value: number) => void;
   updateProjectDetails: (projectId: string, patch: Partial<Project>, summary: string) => void;
-  deleteProject: (projectId: string) => void;
+  deleteProject: (projectId: string) => Promise<void>;
   updatePayment: (projectId: string, patch: Partial<PaymentDetails>, summary: string) => void;
   addPaymentReceived: (projectId: string, payment: Omit<PaymentReceived, "id" | "createdBy">) => void;
   setProjectSetting: <K extends keyof ProjectSettings>(projectId: string, key: K, value: ProjectSettings[K]) => void;
@@ -352,10 +352,26 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     [patchProject, logged],
   );
 
-  const deleteProject = useCallback<Actions["deleteProject"]>((projectId) => {
-    setProjects((prev) => prev.filter((p) => p.id !== projectId));
-    setCash((prev) => prev.filter((e) => e.projectId !== projectId));
-  }, []);
+  const deleteProject = useCallback<Actions["deleteProject"]>(async (projectId) => {
+    const nextProjects = projects.filter((project) => project.id !== projectId);
+    const nextCash = cash.filter((entry) => entry.projectId !== projectId);
+    const snapshot = JSON.stringify({ users, projects: nextProjects, notes, audit, cash: nextCash, trend, revokedIdentities });
+
+    // Serialize with autosaves so an older full-workspace snapshot cannot land
+    // after this deletion and restore the project.
+    saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
+      const response = await fetch("/api/workspace", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: snapshot,
+        keepalive: true,
+      });
+      if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Unable to delete project");
+    });
+    await saveQueue.current;
+    setProjects(nextProjects);
+    setCash(nextCash);
+  }, [projects, cash, users, notes, audit, trend, revokedIdentities]);
 
   const updatePayment = useCallback<Actions["updatePayment"]>(
     (projectId, patch, summary) =>

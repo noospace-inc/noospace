@@ -40,7 +40,7 @@ function DistributePage() {
   const project = projects.find((p) => p.id === projectId);
   if (!project) throw notFound();
 
-  const isLeader = currentUser.id === project.leaderId;
+  const isLeader = currentUser.id === project.leaderId || currentUser.role === "admin";
   const totals = distributionTotals(project);
   const [date, setDate] = useState(iso(new Date()));
   const [received, setReceived] = useState(project.payment.perPersonRate ? project.payment.perPersonRate * 10 : 0);

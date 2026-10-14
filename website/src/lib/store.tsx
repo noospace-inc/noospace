@@ -1,4 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import {
   addDays,
   auditLog as seedAudit,
@@ -9,6 +10,7 @@ import {
   emptyPayment,
   iso,
   projects as seedProjects,
+  punctualityTrend as seedTrend,
   users as seedUsers,
   type AuditEntry,
   type CalendarNote,
@@ -33,7 +35,12 @@ type State = {
   audit: AuditEntry[];
   cash: CashEntry[];
   currentUser: User;
+  trend: typeof seedTrend;
 };
+
+type RevokedIdentity = { id: string; email: string };
+
+export type AuthenticatedIdentity = { id: string; email: string; name: string };
 
 export type NewProjectInput = Pick<
   Project,
@@ -58,12 +65,14 @@ type Actions = {
   addPaymentReceived: (projectId: string, payment: Omit<PaymentReceived, "id" | "createdBy">) => void;
   setProjectSetting: <K extends keyof ProjectSettings>(projectId: string, key: K, value: ProjectSettings[K]) => void;
   addDistribution: (projectId: string, distribution: Omit<Distribution, "id" | "createdBy">) => void;
-  addNote: (note: { date: string; title: string; importance: Importance }) => void;
+  addNote: (note: Omit<CalendarNote, "id">) => void;
   addCashEntry: (entry: Omit<CashEntry, "id" | "createdBy" | "createdAt">) => void;
   updateCashEntry: (entryId: string, entry: Omit<CashEntry, "id" | "createdBy" | "createdAt">) => void;
   setCashSettled: (entryId: string, settled: boolean) => void;
   setRole: (userId: string, role: Role) => void;
   addUser: (input: Pick<User, "name" | "email" | "role" | "title"> & Partial<Pick<User, "github" | "bio" | "accent">>) => void;
+  updateUser: (userId: string, patch: Partial<Pick<User, "name" | "email" | "role" | "title" | "github" | "bio">>) => void;
+  deleteUser: (userId: string) => void;
   updateProfile: (patch: Partial<User>) => void;
 };
 
@@ -71,12 +80,94 @@ const StoreContext = createContext<(State & Actions) | null>(null);
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
-export function StoreProvider({ children }: { children: ReactNode }) {
+export function StoreProvider({ children, identity = null }: { children: ReactNode; identity?: AuthenticatedIdentity | null }) {
   const [users, setUsers] = useState<User[]>(seedUsers);
   const [projects, setProjects] = useState<Project[]>(seedProjects);
   const [notes, setNotes] = useState<CalendarNote[]>(seedNotes);
   const [audit, setAudit] = useState<AuditEntry[]>(seedAudit);
   const [cash, setCash] = useState<CashEntry[]>(seedCash);
+  const [trend, setTrend] = useState<typeof seedTrend>(seedTrend);
+  const [revokedIdentities, setRevokedIdentities] = useState<RevokedIdentity[]>([]);
+  const [databaseReady, setDatabaseReady] = useState(false);
+  const saveQueue = useRef<Promise<void>>(Promise.resolve());
+  const [activeUserId, setActiveUserId] = useState(currentUserId);
+
+  useEffect(() => {
+    if (!identity) {
+      setActiveUserId(currentUserId);
+      return;
+    }
+    if (!databaseReady || !identity.email) return;
+    if (revokedIdentities.some((user) => user.id === `google_${identity.id}` || user.email.toLowerCase() === identity.email.toLowerCase())) return;
+    const existing = users.find((user) => user.id === `google_${identity.id}`)
+      ?? users.find((user) => user.email.toLowerCase() === identity.email.toLowerCase());
+    if (existing) {
+      setActiveUserId(existing.id);
+      return;
+    }
+    const id = `google_${identity.id}`;
+    setActiveUserId(id);
+    setUsers((current) => current.some((user) => user.id === id) ? current : [{
+      id,
+      name: identity.name || identity.email,
+      email: identity.email,
+      role: "staff",
+      title: "Team member",
+      github: "",
+      bio: "",
+      accent: "blue",
+      punctuality: 100,
+      links: [],
+      profileVisibility: "public",
+    }, ...current]);
+  }, [identity, databaseReady, users, revokedIdentities]);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/workspace")
+      .then(async (response) => {
+        if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Unable to load saved workspace data");
+        return response.json();
+      })
+      .then((data: { users: User[]; projects: Project[]; notes: CalendarNote[]; audit: AuditEntry[]; cash: CashEntry[]; trend: typeof seedTrend; revokedIdentities?: RevokedIdentity[] }) => {
+        if (!active) return;
+        setUsers(data.users);
+        setProjects(data.projects);
+        setNotes(data.notes);
+        setAudit(data.audit);
+        setCash(data.cash);
+        setTrend(data.trend);
+        setRevokedIdentities(Array.isArray(data.revokedIdentities) ? data.revokedIdentities : []);
+        setDatabaseReady(true);
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        console.error("Workspace database load failed", error);
+        toast.error(error instanceof Error ? error.message : "Unable to connect to the workspace database");
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!databaseReady) return;
+    const timer = window.setTimeout(() => {
+      const snapshot = JSON.stringify({ users, projects, notes, audit, cash, trend, revokedIdentities });
+      saveQueue.current = saveQueue.current.catch(() => undefined).then(async () => {
+        const response = await fetch("/api/workspace", {
+          method: "PUT",
+          headers: { "content-type": "application/json" },
+          body: snapshot,
+          keepalive: true,
+        });
+        if (!response.ok) throw new Error((await response.json().catch(() => null))?.error ?? "Unable to save workspace changes");
+      });
+      void saveQueue.current.catch((error: unknown) => {
+        console.error("Workspace database save failed", error);
+        toast.error(error instanceof Error ? error.message : "Unable to save workspace changes");
+      });
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [users, projects, notes, audit, cash, trend, revokedIdentities, databaseReady]);
 
   const patchProject = useCallback((projectId: string, fn: (p: Project) => Project) => {
     setProjects((prev) => prev.map((p) => (p.id === projectId ? fn(p) : p)));
@@ -108,11 +199,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     (p: Project, area: HistoryArea, summary: string): Project => ({
       ...p,
       history: [
-        { id: `h_${uid()}`, at: new Date().toISOString(), actorId: currentUserId, area, summary },
+        { id: `h_${uid()}`, at: new Date().toISOString(), actorId: activeUserId, area, summary },
         ...p.history,
       ],
     }),
-    [],
+    [activeUserId],
   );
 
   const approveTask = useCallback<Actions["approveTask"]>(
@@ -193,13 +284,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         distributions: [],
         paymentsReceived: [],
         history: [
-          { id: `h_${uid()}`, at: new Date().toISOString(), actorId: currentUserId, area: "details", summary: "Created the project" },
+          { id: `h_${uid()}`, at: new Date().toISOString(), actorId: activeUserId, area: "details", summary: "Created the project" },
         ],
       },
       ...prev,
     ]);
     return id;
-  }, []);
+  }, [activeUserId]);
 
   const addSchedule = useCallback<Actions["addSchedule"]>(
     (projectId, schedule) => {
@@ -279,7 +370,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       patchProject(projectId, (p) => {
         const received = p.payment.amountReceived + payment.amount;
         const status = p.payment.invoiceAmount > 0 && received >= p.payment.invoiceAmount ? "paid" : "partial";
-        const entry = { ...payment, id: `pr_${uid()}`, createdBy: currentUserId };
+        const entry = { ...payment, id: `pr_${uid()}`, createdBy: activeUserId };
         setCash((prev) => [
           {
             id: `c_${uid()}`,
@@ -293,7 +384,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             proof: payment.proof ?? "",
             isRepayment: false,
             isSettled: false,
-            createdBy: currentUserId,
+            createdBy: activeUserId,
             createdAt: new Date().toISOString(),
           },
           ...prev,
@@ -308,7 +399,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           `Added payment received ${inr(payment.amount)}`,
         );
       }),
-    [patchProject, logged],
+    [patchProject, logged, activeUserId],
   );
 
   const setProjectSetting = useCallback<Actions["setProjectSetting"]>(
@@ -341,7 +432,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             proof: "",
             isRepayment: false,
             isSettled: false,
-            createdBy: currentUserId,
+            createdBy: activeUserId,
             createdAt: new Date().toISOString(),
           },
           ...prev,
@@ -351,7 +442,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             ...p,
             payment: { ...p.payment, amountReceived: received, status, configured: true },
             distributions: [
-              { ...distribution, id: `d_${uid()}`, createdBy: currentUserId },
+              { ...distribution, id: `d_${uid()}`, createdBy: activeUserId },
               ...p.distributions,
             ],
           },
@@ -359,7 +450,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           `Distributed ₹${distributed.toLocaleString("en-IN")} across ${distribution.allocations.length} members`,
         );
       }),
-    [patchProject, logged, users],
+    [patchProject, logged, users, activeUserId],
   );
 
   const addNote = useCallback<Actions["addNote"]>((note) => {
@@ -380,9 +471,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
                 id: `pr_${uid()}`,
                 date: entry.date,
                 amount: entry.amount,
-                proof: entry.proof || undefined,
+                ...(entry.proof ? { proof: entry.proof } : {}),
                 note: entry.note || "Added from cashbook",
-                createdBy: currentUserId,
+                createdBy: activeUserId,
               },
               ...p.paymentsReceived,
             ],
@@ -393,10 +484,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
     }
     setCash((prev) => [
-      { ...entry, id: `c_${uid()}`, createdBy: currentUserId, createdAt: new Date().toISOString() },
+      { ...entry, id: `c_${uid()}`, createdBy: activeUserId, createdAt: new Date().toISOString() },
       ...prev,
     ]);
-  }, [patchProject, logged]);
+  }, [patchProject, logged, activeUserId]);
 
   const updateCashEntry = useCallback<Actions["updateCashEntry"]>((entryId, entry) => {
     setCash((prev) => prev.map((e) => (e.id === entryId ? { ...e, ...entry } : e)));
@@ -413,7 +504,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         setAudit((log) => [
           {
             id: `a_${uid()}`,
-            actor: seedUsers.find((u) => u.id === currentUserId)?.name ?? "Admin",
+            actor: prev.find((u) => u.id === activeUserId)?.name ?? "Admin",
             target: target.name,
             from: target.role,
             to: role,
@@ -424,10 +515,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
       return prev.map((u) => (u.id === userId ? { ...u, role } : u));
     });
-  }, []);
+  }, [activeUserId]);
 
   const addUser = useCallback<Actions["addUser"]>((input) => {
     const accents: User["accent"][] = ["blue", "pink", "green", "peach", "lilac"];
+    setRevokedIdentities((previous) => previous.filter((identity) => identity.email.toLowerCase() !== input.email.toLowerCase()));
     setUsers((prev) => [
       {
         id: `u_${uid()}`,
@@ -446,12 +538,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ]);
   }, []);
 
-  const updateProfile = useCallback<Actions["updateProfile"]>((patch) => {
-    setUsers((prev) => prev.map((u) => (u.id === currentUserId ? { ...u, ...patch } : u)));
+  const updateUser = useCallback<Actions["updateUser"]>((userId, patch) => {
+    setUsers((prev) => prev.map((user) => (user.id === userId ? { ...user, ...patch } : user)));
   }, []);
 
+  const deleteUser = useCallback<Actions["deleteUser"]>((userId) => {
+    const target = users.find((user) => user.id === userId);
+    if (!target) return;
+    const remaining = users.filter((user) => user.id !== userId);
+    const fallbackLeader = remaining.find((user) => user.role === "admin")?.id ?? remaining[0]?.id ?? activeUserId;
+    setRevokedIdentities((previous) => previous.some((identity) => identity.id === userId || identity.email.toLowerCase() === target.email.toLowerCase())
+      ? previous
+      : [...previous, { id: userId, email: target.email }]);
+    setProjects((current) => current.map((project) => {
+      const memberIds = project.memberIds.filter((id) => id !== userId);
+      return {
+        ...project,
+        memberIds,
+        leaderId: project.leaderId === userId ? (memberIds[0] ?? fallbackLeader) : project.leaderId,
+      };
+    }));
+    setUsers(remaining);
+  }, [activeUserId, users]);
+
+  const updateProfile = useCallback<Actions["updateProfile"]>((patch) => {
+    setUsers((prev) => prev.map((u) => (u.id === activeUserId ? { ...u, ...patch } : u)));
+  }, [activeUserId]);
+
   const value = useMemo(() => {
-    const currentUser = users.find((u) => u.id === currentUserId) ?? users[0]!;
+    const currentUser = users.find((u) => u.id === activeUserId) ?? users[0]!;
     return {
       users,
       projects,
@@ -459,6 +574,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       audit,
       cash,
       currentUser,
+      trend,
       approveTask,
       revertDeduction,
       updateTask,
@@ -481,14 +597,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setCashSettled,
       setRole,
       addUser,
+      updateUser,
+      deleteUser,
       updateProfile,
     };
   }, [
     users,
+    activeUserId,
     projects,
     notes,
     audit,
     cash,
+    trend,
     approveTask,
     revertDeduction,
     updateTask,
@@ -511,6 +631,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCashSettled,
     setRole,
     addUser,
+    updateUser,
+    deleteUser,
     updateProfile,
   ]);
 
@@ -526,6 +648,13 @@ export function useStore() {
 export function useUserMap() {
   const { users } = useStore();
   return useMemo(() => Object.fromEntries(users.map((u) => [u.id, u])) as Record<string, User>, [users]);
+}
+
+export function canViewCalendarNote(note: CalendarNote, user: User, projects: Project[]) {
+  if (!note.isPrivate || user.role === "admin" || note.createdBy === user.id) return true;
+  if (!note.projectId) return false;
+  const project = projects.find((item) => item.id === note.projectId);
+  return Boolean(project && (project.leaderId === user.id || project.memberIds.includes(user.id)));
 }
 
 export function projectStats(project: Project) {

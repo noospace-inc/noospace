@@ -3,7 +3,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { StatusPill, Surface, accent } from "@/components/ui-bits";
 import { addDays, type Importance } from "@/lib/mock-data";
-import { useStore, useUserMap } from "@/lib/store";
+import { canViewCalendarNote, useStore, useUserMap } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/calendar/$date")({
@@ -24,10 +24,10 @@ const importanceStyle: Record<Importance, string> = {
 
 function CalendarDayPage() {
   const { date } = Route.useParams();
-  const { projects, notes } = useStore();
+  const { projects, notes, currentUser } = useStore();
   const userMap = useUserMap();
 
-  const dayNotes = notes.filter((n) => n.date === date);
+  const dayNotes = notes.filter((n) => n.date === date && canViewCalendarNote(n, currentUser, projects));
   const items = projects.flatMap((project) =>
     project.schedules
       .filter((s) => date >= s.startDate && date <= addDays(s.startDate, s.days - 1))

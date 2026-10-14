@@ -4,6 +4,16 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -41,8 +51,8 @@ function AdvanceInfo() {
   const project = projects.find((p) => p.id === projectId);
   if (!project) throw notFound();
 
-  const isLeader = currentUser.id === project.leaderId;
   const isAdmin = currentUser.role === "admin";
+  const isLeader = currentUser.id === project.leaderId || isAdmin;
   const totals = distributionTotals(project);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState(project.payment);
@@ -50,6 +60,7 @@ function AdvanceInfo() {
   const [showProof, setShowProof] = useState(false);
   const [showNote, setShowNote] = useState(false);
   const [paymentForm, setPaymentForm] = useState({ amount: "", proof: "", note: "" });
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const startEdit = () => {
     setForm(project.payment);
@@ -59,14 +70,31 @@ function AdvanceInfo() {
   const save = () => {
     const diffs: string[] = [];
     if (form.invoiceNumber !== project.payment.invoiceNumber) diffs.push(`invoice no. → ${form.invoiceNumber || "—"}`);
+    if (form.invoiceDate !== project.payment.invoiceDate) diffs.push("invoice date updated");
     if (form.invoiceAmount !== project.payment.invoiceAmount) diffs.push(`invoice amount → ${inr(form.invoiceAmount)}`);
     if (form.amountReceived !== project.payment.amountReceived) diffs.push(`received → ${inr(form.amountReceived)}`);
     if (form.status !== project.payment.status) diffs.push(`status → ${statusLabel[form.status]}`);
     if (form.perPersonRate !== project.payment.perPersonRate) diffs.push(`per-person rate → ${inr(form.perPersonRate)}`);
     if (form.clientName !== project.payment.clientName) diffs.push(`client → ${form.clientName || "—"}`);
+    if (form.notes !== project.payment.notes) diffs.push("notes updated");
     updatePayment(project.id, form, diffs.length ? `Updated payment ${diffs.join(", ")}` : "Saved payment details");
     setEditing(false);
     toast.success("Payment details saved");
+  };
+
+  const hasPaymentChanges =
+    form.invoiceNumber !== project.payment.invoiceNumber ||
+    form.invoiceDate !== project.payment.invoiceDate ||
+    form.clientName !== project.payment.clientName ||
+    form.invoiceAmount !== project.payment.invoiceAmount ||
+    form.amountReceived !== project.payment.amountReceived ||
+    form.status !== project.payment.status ||
+    form.perPersonRate !== project.payment.perPersonRate ||
+    form.notes !== project.payment.notes;
+
+  const cancelEdit = () => {
+    setForm(project.payment);
+    setEditing(false);
   };
 
   const received = project.payment.amountReceived;
@@ -104,41 +132,11 @@ function AdvanceInfo() {
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-bold tracking-tight sm:text-3xl">Advance info</h1>
-        <div className="flex gap-2">
-        {isAdmin ? (
-          <Button
-            size="icon"
-            variant="destructive"
-            className="size-8 rounded-full"
-            aria-label="Delete project"
-            onClick={() => {
-              if (window.confirm(`Delete ${project.name} completely? This cannot be undone.`)) {
-                deleteProject(project.id);
-                toast.success("Project deleted");
-                navigate({ to: "/projects" });
-              }
-            }}
-          >
-            <Trash2 className="size-3.5" />
+        {isLeader && !editing ? (
+          <Button size="sm" variant="secondary" className="rounded-full" onClick={startEdit}>
+            <Pencil className="mr-1 size-3.5" /> {project.payment.configured ? "Edit" : "Add payment details"}
           </Button>
         ) : null}
-        {isLeader ? (
-          editing ? (
-            <div className="flex gap-2">
-              <Button size="sm" className="rounded-full" onClick={save}>
-                <Check className="mr-1 size-3.5" /> Save
-              </Button>
-              <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
-                <X className="mr-1 size-3.5" /> Cancel
-              </Button>
-            </div>
-          ) : (
-            <Button size="sm" variant="secondary" className="rounded-full" onClick={startEdit}>
-              <Pencil className="mr-1 size-3.5" /> {project.payment.configured ? "Edit" : "Add payment details"}
-            </Button>
-          )
-        ) : null}
-        </div>
       </div>
 
       <Tabs defaultValue="payment">
@@ -395,6 +393,18 @@ function AdvanceInfo() {
               </div>
             </Surface>
           ) : null}
+          {editing ? (
+            <div className="sticky bottom-3 z-10 flex justify-end gap-2 bg-transparent p-0">
+              {hasPaymentChanges ? (
+                <Button size="sm" className="rounded-full" onClick={save}>
+                  <Check className="mr-1 size-3.5" /> Save
+                </Button>
+              ) : null}
+              <Button size="sm" variant="ghost" className="rounded-full" onClick={cancelEdit}>
+                <X className="mr-1 size-3.5" /> Cancel
+              </Button>
+            </div>
+          ) : null}
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">
@@ -430,6 +440,36 @@ function AdvanceInfo() {
           </Surface>
         </TabsContent>
       </Tabs>
+      {isAdmin ? (
+        <Surface className="flex justify-end p-4">
+          <Button variant="destructive" className="rounded-full" onClick={() => setConfirmDelete(true)}>
+            <Trash2 className="mr-1 size-4" /> Delete project
+          </Button>
+        </Surface>
+      ) : null}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes “{project.name}” and its related cashbook entries. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>No, keep project</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                deleteProject(project.id);
+                toast.success("Project deleted");
+                navigate({ to: "/projects" });
+              }}
+            >
+              Yes, delete project
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

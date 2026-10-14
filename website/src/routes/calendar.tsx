@@ -8,9 +8,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Switch } from "@/components/ui/switch";
 import { SectionTitle, StatusPill, Surface, accent } from "@/components/ui-bits";
 import { addDays, iso, startOfWeek, type Importance } from "@/lib/mock-data";
-import { useStore, useUserMap } from "@/lib/store";
+import { canViewCalendarNote, useStore, useUserMap } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/calendar")({
@@ -41,11 +42,13 @@ const importanceStyle: Record<Importance, string> = {
 };
 
 function MarkDateDialog() {
-  const { addNote } = useStore();
+  const { addNote, currentUser, projects } = useStore();
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [date, setDate] = useState(iso(new Date()));
   const [importance, setImportance] = useState<Importance>("normal");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [projectId, setProjectId] = useState("");
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -80,6 +83,23 @@ function MarkDateDialog() {
               ))}
             </RadioGroup>
           </div>
+          <div className="flex items-center justify-between gap-3 rounded-2xl bg-secondary p-3">
+            <div className="space-y-0.5">
+              <Label htmlFor="private-date" className="text-sm font-medium">Set it to private</Label>
+              <p className="text-xs text-muted-foreground">Only admins and related people can see this date.</p>
+            </div>
+            <Switch id="private-date" checked={isPrivate} onCheckedChange={setIsPrivate} aria-label="Set it to private" />
+          </div>
+          {isPrivate ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="related-project">Related project (optional)</Label>
+              <select id="related-project" value={projectId} onChange={(event) => setProjectId(event.target.value)} className="h-11 w-full rounded-xl border border-input bg-background px-3 text-sm">
+                <option value="">No project</option>
+                {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
+              </select>
+              <p className="text-xs text-muted-foreground">The selected project’s team can also see this private date.</p>
+            </div>
+          ) : null}
           <Button
             className="w-full rounded-xl"
             onClick={() => {
@@ -87,10 +107,12 @@ function MarkDateDialog() {
                 toast.error("Add a title");
                 return;
               }
-              addNote({ title, date, importance });
+              addNote({ title: title.trim(), date, importance, isPrivate, createdBy: currentUser.id, ...(isPrivate && projectId ? { projectId } : {}) });
               toast.success("Date marked");
               setOpen(false);
               setTitle("");
+              setIsPrivate(false);
+              setProjectId("");
             }}
           >
             Add to calendar
@@ -102,7 +124,7 @@ function MarkDateDialog() {
 }
 
 function CalendarPage() {
-  const { projects, notes } = useStore();
+  const { projects, notes, currentUser } = useStore();
   const userMap = useUserMap();
   const [view, setView] = useState<CalendarView>("month");
   const [selectedDate, setSelectedDate] = useState(iso(new Date()));
@@ -137,7 +159,7 @@ function CalendarPage() {
         ),
     );
 
-  const noteItems = (date: string) => notes.filter((n) => n.date === date);
+  const noteItems = (date: string) => notes.filter((n) => n.date === date && canViewCalendarNote(n, currentUser, projects));
   const hasItems = (date: string) => scheduleItems(date).length > 0 || noteItems(date).length > 0;
   const selectedItems = scheduleItems(selectedDate);
   const selectedNotes = noteItems(selectedDate);

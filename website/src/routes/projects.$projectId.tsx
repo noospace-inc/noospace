@@ -57,7 +57,7 @@ function AddScheduleDialog({
   const [isLast, setIsLast] = useState(false);
   const [tasks, setTasks] = useState<Record<string, string[]>>({});
   const project = projects.find((p) => p.id === projectId);
-  const isLeader = project?.leaderId === currentUser.id;
+  const isLeader = project?.leaderId === currentUser.id || currentUser.role === "admin";
 
   const add = () => {
     const flat: Omit<Task, "id">[] = Object.entries(tasks).flatMap(([userId, list]) =>
@@ -170,9 +170,11 @@ function ProjectDetail() {
   if (!project) throw notFound();
 
   const stats = projectStats(project);
+  const isAdmin = currentUser.role === "admin";
   const isLeader = currentUser.id === project.leaderId;
+  const canManageProject = isLeader || isAdmin;
   const canSelfSchedule = project.settings.allowSelfSchedule && project.memberIds.includes(currentUser.id);
-  const canCreateSchedule = isLeader || canSelfSchedule;
+  const canCreateSchedule = canManageProject || canSelfSchedule;
   const members = project.memberIds.map((id) => userMap[id]!).filter(Boolean);
   const vStats = videoStats(project);
 
@@ -217,6 +219,17 @@ function ProjectDetail() {
     setEditing(false);
     toast.success("Project details saved");
   };
+  const hasProjectChanges =
+    form.name !== project.name ||
+    form.description !== project.description ||
+    editMembers.join(",") !== project.memberIds.join(",") ||
+    editLinks.length !== project.links.length ||
+    editLinks.some((link, index) =>
+      link.id !== project.links[index]?.id ||
+      link.label !== project.links[index]?.label ||
+      link.value !== project.links[index]?.value ||
+      link.url !== project.links[index]?.url,
+    );
 
   return (
     <div className="space-y-4">
@@ -225,7 +238,7 @@ function ProjectDetail() {
           <ArrowLeft className="size-3.5" /> All projects
         </Link>
         <div className="flex w-full flex-nowrap gap-1.5 sm:w-auto sm:flex-wrap sm:gap-2">
-          {isLeader ? (
+          {canManageProject ? (
             <Button size="sm" variant="secondary" className="min-w-0 rounded-full px-3 text-xs sm:px-4 sm:text-sm" onClick={startEdit}>
               <Pencil className="mr-1 size-3.5" /> Edit
             </Button>
@@ -237,7 +250,7 @@ function ProjectDetail() {
               <span className="hidden sm:inline">Advance info</span>
             </Link>
           </Button>
-          {isLeader ? (
+          {canManageProject ? (
             <Button asChild variant="secondary" size="sm" className="min-w-0 rounded-full px-3 text-xs sm:px-4 sm:text-sm">
               <Link to="/projects/$projectId/distribute" params={{ projectId: project.id }}>
                 <Wallet className="mr-1 size-3.5" />
@@ -329,14 +342,6 @@ function ProjectDetail() {
                       })}
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <Button size="sm" className="rounded-full" onClick={saveEdit}>
-                    <Check className="mr-1 size-3.5" /> Save
-                  </Button>
-                  <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
-                    <X className="mr-1 size-3.5" /> Cancel
-                  </Button>
-                </div>
               </div>
             ) : (
               <>
@@ -357,13 +362,13 @@ function ProjectDetail() {
                 {project.links.map((l) => (
                   <LinkChip key={l.id} link={l} />
                 ))}
-                {isLeader ? (
+                {canManageProject ? (
                   <Button type="button" variant="secondary" size="icon" className="size-8 rounded-full" aria-label="Add project link" onClick={startAddLink}>
                     <Plus className="size-4" />
                   </Button>
                 ) : null}
               </div>
-            ) : isLeader ? (
+            ) : canManageProject ? (
               <div className="mt-4">
                 <Button type="button" variant="secondary" size="sm" className="rounded-full" onClick={startAddLink}>
                   <Plus className="mr-1 size-3.5" /> Add project link
@@ -382,6 +387,18 @@ function ProjectDetail() {
             </div>
           </div>
         </div>
+        {editing ? (
+          <div className="sticky bottom-3 z-10 mt-4 flex justify-end gap-2 bg-transparent p-0">
+            {hasProjectChanges ? (
+              <Button size="sm" className="rounded-full" onClick={saveEdit}>
+                <Check className="mr-1 size-3.5" /> Save
+              </Button>
+            ) : null}
+            <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setEditing(false)}>
+              <X className="mr-1 size-3.5" /> Cancel
+            </Button>
+          </div>
+        ) : null}
       </Surface>
 
       {project.isVideoProject ? (
@@ -503,9 +520,9 @@ function ProjectDetail() {
         </div>
       </Surface>
 
-          <AddScheduleDialog
-            projectId={project.id}
-            memberIds={project.memberIds}
+      <AddScheduleDialog
+        projectId={project.id}
+        memberIds={project.memberIds}
         open={addOpen}
         setOpen={setAddOpen}
         presetDate={presetDate}

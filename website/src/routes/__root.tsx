@@ -4,17 +4,20 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useNavigate,
   HeadContent,
   Scripts,
   useRouterState,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { AppShell } from "@/components/app-shell";
 import { StoreProvider } from "@/lib/store";
 import { Toaster } from "@/components/ui/sonner";
+
+type AuthenticatedIdentity = { id: string; email: string; name: string };
 
 function NotFoundComponent() {
   return (
@@ -132,15 +135,50 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const bare = pathname.startsWith("/auth") || pathname === "/login";
+  const bare = pathname === "/login";
 
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        {bare ? <Outlet /> : <AppShell><Outlet /></AppShell>}
-        <Toaster position="top-center" />
-      </StoreProvider>
+      {bare ? <Outlet /> : <AuthenticatedApp><Outlet /></AuthenticatedApp>}
+      <Toaster position="top-center" />
     </QueryClientProvider>
   );
+}
+
+function AuthenticatedApp({ children }: { children: ReactNode }) {
+  const navigate = useNavigate();
+  const [identity, setIdentity] = useState<AuthenticatedIdentity | null>(null);
+  const [sessionLoaded, setSessionLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/auth/session", { credentials: "same-origin" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Unable to check your Google session.");
+        return response.json() as Promise<{ identity: AuthenticatedIdentity | null }>;
+      })
+      .then((session) => { if (active) setIdentity(session.identity); })
+      .catch((error: unknown) => {
+        console.error("Google session check failed", error);
+        if (active) setIdentity(null);
+      })
+      .finally(() => { if (active) setSessionLoaded(true); });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (sessionLoaded && !identity) void navigate({ to: "/login", replace: true });
+  }, [identity, navigate, sessionLoaded]);
+
+  const signOut = async () => {
+    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+    setIdentity(null);
+    await navigate({ to: "/login", replace: true });
+  };
+
+  if (!sessionLoaded || !identity) {
+    return <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">Checking your Google session…</div>;
+  }
+
+  return <StoreProvider identity={identity}><AppShell onSignOut={signOut}>{children}</AppShell></StoreProvider>;
 }

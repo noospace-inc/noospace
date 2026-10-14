@@ -1,4 +1,4 @@
-name = "your-project-name"
+name = "noospace"
 main = ".output/server/index.mjs"
 compatibility_date = "2026-08-28"
 compatibility_flags = ["nodejs_compat"]
@@ -6,3 +6,9 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = ".output/public"
 binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DATABASE"
+database_name = "noospace-workspace"
+database_id = "ce38ff04-8e76-4ff0-b9c0-c5899e3e618d"
+migrations_dir = "migrations"

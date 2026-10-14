@@ -3,8 +3,11 @@
   "private": true,
   "sideEffects": false,
   "type": "module",
+  "packageManager": "npm@10.9.2",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "npm run db:local && npm run build && npx wrangler dev --config wrangler.local.toml",
+    "dev:vite": "vite dev",
+    "db:local": "npx wrangler d1 migrations apply noospace-local --local --config wrangler.local.toml",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
@@ -51,6 +54,7 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
+    "jose": "^6.2.12",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
     "react-day-picker": "^9.14.0",
@@ -79,10 +83,11 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
-    "nitro": "3.0.260603-beta",
+    "nitro": "3.0.260903-beta",
     "prettier": "^3.7.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
-    "vite": "^8.2.0"
+    "vite": "^8.2.0",
+    "wrangler": "4.150.0"
   }
 }

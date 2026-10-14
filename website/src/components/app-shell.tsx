@@ -50,7 +50,7 @@ function useTheme() {
   return { dark, toggle: () => setDark((d) => !d) };
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void | Promise<void> }) {
   const { currentUser } = useStore();
   const { dark, toggle } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
@@ -159,9 +159,23 @@ export function AppShell({ children }: { children: ReactNode }) {
                 >
                   {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
                 </button>
-                <Link to="/profile" aria-label="Profile">
-                  <Initials user={currentUser} size={32} />
-                </Link>
+                {onSignOut ? (
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button type="button" aria-label="Account menu" className="rounded-full">
+                        <Initials user={currentUser} size={32} />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="rounded-2xl">
+                      <DropdownMenuLabel>{currentUser.name}</DropdownMenuLabel>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild><Link to="/profile">Profile</Link></DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => { void onSignOut(); }}>Sign out</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                ) : (
+                  <Link to="/profile" aria-label="Profile"><Initials user={currentUser} size={32} /></Link>
+                )}
               </div>
             </header>
             <main className="pb-10">{children}</main>

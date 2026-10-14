@@ -40,7 +40,7 @@ export function ScheduleTimeline({
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [proofDraft, setProofDraft] = useState<Record<string, string>>({});
 
-  const isLeader = currentUser.id === project.leaderId;
+  const isLeader = currentUser.id === project.leaderId || currentUser.role === "admin";
   const today = iso(new Date());
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(weekStart, i)), [weekStart]);
 

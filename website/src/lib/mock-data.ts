@@ -146,6 +146,9 @@ export type CalendarNote = {
   date: string;
   title: string;
   importance: Importance;
+  isPrivate?: boolean;
+  createdBy?: string;
+  projectId?: string;
 };
 
 export type AuditEntry = {

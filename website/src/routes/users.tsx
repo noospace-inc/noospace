@@ -1,14 +1,24 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Plus, Search, ShieldCheck } from "lucide-react";
+import { Pencil, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Initials, SectionTitle, Surface } from "@/components/ui-bits";
-import type { Role } from "@/lib/mock-data";
+import type { Role, User } from "@/lib/mock-data";
 import { useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
@@ -25,10 +35,13 @@ export const Route = createFileRoute("/users")({
 });
 
 function UsersPage() {
-  const { users, audit, setRole, addUser, currentUser } = useStore();
+  const { users, audit, setRole, addUser, updateUser, deleteUser, currentUser } = useStore();
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | Role>("all");
   const [addOpen, setAddOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "", title: "", role: "staff" as Role, github: "", bio: "" });
+  const [deletingUser, setDeletingUser] = useState<User | null>(null);
   const [form, setForm] = useState({ name: "", email: "", title: "", role: "staff" as Role, github: "", bio: "" });
 
   if (currentUser.role !== "admin") {
@@ -61,6 +74,54 @@ function UsersPage() {
     toast.success("User added");
     setAddOpen(false);
     setForm({ name: "", email: "", title: "", role: "staff", github: "", bio: "" });
+  };
+
+  const startEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditForm({ name: user.name, email: user.email, title: user.title, role: user.role, github: user.github, bio: user.bio });
+  };
+
+  const submitEditUser = () => {
+    if (!editingUser) return;
+    if (!editForm.name.trim() || !editForm.email.trim() || !editForm.title.trim()) {
+      toast.error("Name, email and title are required");
+      return;
+    }
+    if (editingUser.id === currentUser.id && editForm.role !== "admin") {
+      toast.error("You can't remove your own admin access");
+      return;
+    }
+    if (editingUser.role === "admin" && editForm.role !== "admin" && users.filter((user) => user.role === "admin").length < 2) {
+      toast.error("At least one admin account must remain");
+      return;
+    }
+    updateUser(editingUser.id, {
+      name: editForm.name.trim(),
+      email: editForm.email.trim(),
+      title: editForm.title.trim(),
+      role: editForm.role,
+      github: editForm.github.trim(),
+      bio: editForm.bio.trim(),
+    });
+    toast.success("User updated");
+    setEditingUser(null);
+  };
+
+  const confirmDeleteUser = () => {
+    if (!deletingUser) return;
+    if (deletingUser.id === currentUser.id) {
+      toast.error("You can't delete your own account while signed in");
+      setDeletingUser(null);
+      return;
+    }
+    if (deletingUser.role === "admin" && users.filter((user) => user.role === "admin").length < 2) {
+      toast.error("At least one admin account must remain");
+      setDeletingUser(null);
+      return;
+    }
+    deleteUser(deletingUser.id);
+    toast.success(`${deletingUser.name} deleted`);
+    setDeletingUser(null);
   };
 
   return (
@@ -126,11 +187,25 @@ function UsersPage() {
                   className="rounded-full"
                   onClick={() => {
                     const next: Role = u.role === "admin" ? "staff" : "admin";
+                    if (u.id === currentUser.id && next === "staff") {
+                      toast.error("You can't remove your own admin access");
+                      return;
+                    }
+                    if (u.role === "admin" && next === "staff" && users.filter((user) => user.role === "admin").length < 2) {
+                      toast.error("At least one admin account must remain");
+                      return;
+                    }
                     setRole(u.id, next);
                     toast.success(`${u.name} is now ${next}`);
                   }}
                 >
                   {u.role === "admin" ? "Demote to staff" : "Promote to admin"}
+                </Button>
+                <Button variant="secondary" size="icon" className="size-9 rounded-full" aria-label={`Edit ${u.name}`} onClick={() => startEditUser(u)}>
+                  <Pencil className="size-4" />
+                </Button>
+                <Button variant="destructive" size="icon" className="size-9 rounded-full" aria-label={`Delete ${u.name}`} onClick={() => setDeletingUser(u)}>
+                  <Trash2 className="size-4" />
                 </Button>
               </div>
             </li>
@@ -205,6 +280,44 @@ function UsersPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={!!editingUser} onOpenChange={(open) => !open && setEditingUser(null)}>
+        <DialogContent className="rounded-3xl sm:max-w-lg">
+          <DialogHeader><DialogTitle>Edit user account</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Name"><Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="rounded-xl" /></Field>
+              <Field label="Email"><Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="rounded-xl" /></Field>
+              <Field label="Title"><Input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="rounded-xl" /></Field>
+              <Field label="Role">
+                <div className="flex gap-2 rounded-xl bg-secondary p-1">
+                  {(["staff", "admin"] as Role[]).map((role) => (
+                    <button key={role} type="button" onClick={() => setEditForm({ ...editForm, role })} className={cn("flex-1 rounded-lg px-3 py-2 text-xs font-semibold capitalize", editForm.role === role ? "bg-card text-foreground shadow-card" : "text-muted-foreground")}>{role}</button>
+                  ))}
+                </div>
+              </Field>
+              <div className="sm:col-span-2"><Field label="GitHub"><Input value={editForm.github} onChange={(e) => setEditForm({ ...editForm, github: e.target.value })} className="rounded-xl" /></Field></div>
+              <div className="sm:col-span-2"><Field label="Bio"><Input value={editForm.bio} onChange={(e) => setEditForm({ ...editForm, bio: e.target.value })} className="rounded-xl" /></Field></div>
+            </div>
+            <Button className="w-full rounded-xl" onClick={submitEditUser}>Save user</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this user?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes {deletingUser?.name} from the workspace and removes them from project teams. Existing task and cashbook history is retained. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={confirmDeleteUser}>Delete user</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

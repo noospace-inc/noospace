@@ -11,6 +11,7 @@ type WorkspaceSnapshot = {
   notes: typeof calendarNotes;
   audit: typeof auditLog;
   cash: typeof cashbookEntries;
+  cashbookClearedAt?: string;
   trend: typeof punctualityTrend;
   revokedIdentities: { id: string; email: string }[];
 };
@@ -193,6 +194,13 @@ async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): P
     }
     const existingRow = await env.DATABASE.prepare("SELECT data FROM workspace_state WHERE id = ?").bind("default").first() as { data: string } | null;
     const existing = existingRow ? JSON.parse(existingRow.data) as Partial<WorkspaceSnapshot> : {};
+    const cashbookClearedAt = typeof existing.cashbookClearedAt === "string" ? existing.cashbookClearedAt : null;
+    const cash = cashbookClearedAt
+      ? snapshot.cash.filter((entry) => {
+          const createdAt = Date.parse(entry.createdAt);
+          return Number.isFinite(createdAt) && createdAt > Date.parse(cashbookClearedAt);
+        })
+      : snapshot.cash;
     const existingUsers = existing.users ?? [];
     const actor = existingUsers.find((user) => user.id === `google_${identity.id}` || user.email.toLowerCase() === identity.email.toLowerCase())
       ?? { id: `google_${identity.id}`, email: identity.email, role: "staff" as const };
@@ -202,6 +210,8 @@ async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): P
     const submittedIds = new Set(visibleSubmittedNotes.map((note) => note.id));
     const nextSnapshot = {
       ...snapshot,
+      cash,
+      ...(cashbookClearedAt ? { cashbookClearedAt } : {}),
       notes: [...visibleSubmittedNotes, ...hiddenExistingNotes.filter((note) => !submittedIds.has(note.id))],
       revokedIdentities: Array.isArray(snapshot.revokedIdentities) ? snapshot.revokedIdentities : existing.revokedIdentities ?? [],
     };

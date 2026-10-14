@@ -10,6 +10,7 @@ import {
   useRouterState,
 } from "@tanstack/react-router";
 import { useEffect, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -171,9 +172,18 @@ function AuthenticatedApp({ children }: { children: ReactNode }) {
   }, [identity, navigate, sessionLoaded]);
 
   const signOut = async () => {
-    await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
-    setIdentity(null);
-    await navigate({ to: "/login", replace: true });
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" });
+      if (!response.ok) {
+        const result = await response.json().catch(() => null) as { error?: string } | null;
+        throw new Error(result?.error ?? "Unable to sign out. Please try again.");
+      }
+      setIdentity(null);
+      await navigate({ to: "/login", replace: true });
+    } catch (error) {
+      console.error("Google sign-out failed", error);
+      toast.error(error instanceof Error ? error.message : "Unable to sign out. Please try again.");
+    }
   };
 
   if (!sessionLoaded || !identity) {

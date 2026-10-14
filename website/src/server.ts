@@ -130,10 +130,22 @@ function sameOrigin(request: Request) {
 }
 
 async function handleAuthApi(request: Request, env: DatabaseEnv) {
+  const pathname = new URL(request.url).pathname;
+
+  // Signing out must remain available even if a build is missing its Google
+  // client ID; logout only needs to expire the app's session cookie.
+  if (request.method === "POST" && pathname === "/api/auth/logout") {
+    if (!sameOrigin(request)) return Response.json({ error: "Cross-origin sign-out is not allowed." }, { status: 403 });
+    return new Response(null, {
+      status: 204,
+      headers: { "Set-Cookie": sessionCookie(request, "", 0), "Cache-Control": "no-store" },
+    });
+  }
+
   const clientIdValue = clientId(env);
   if (!clientIdValue) return Response.json({ error: "Google sign-in is not configured. Set VITE_GOOGLE_CLIENT_ID." }, { status: 503 });
 
-  if (request.method === "POST" && new URL(request.url).pathname === "/api/auth/google") {
+  if (request.method === "POST" && pathname === "/api/auth/google") {
     if (!sameOrigin(request)) return Response.json({ error: "Cross-origin sign-in is not allowed." }, { status: 403 });
     const body = await request.json().catch(() => null) as { credential?: unknown } | null;
     if (!body || typeof body.credential !== "string" || body.credential.length > 8192) {
@@ -162,7 +174,7 @@ async function handleAuthApi(request: Request, env: DatabaseEnv) {
     }
   }
 
-  if (request.method === "GET" && new URL(request.url).pathname === "/api/auth/session") {
+  if (request.method === "GET" && pathname === "/api/auth/session") {
     const token = cookieValue(request, sessionCookieName);
     if (!token) return Response.json({ identity: null }, { headers: { "Cache-Control": "no-store" } });
     let identity: GoogleIdentity;
@@ -184,14 +196,6 @@ async function handleAuthApi(request: Request, env: DatabaseEnv) {
       return Response.json({ error: "The workspace account could not be saved. Please try again." }, { status: 503 });
     }
     return Response.json({ identity }, { headers: { "Cache-Control": "no-store" } });
-  }
-
-  if (request.method === "POST" && new URL(request.url).pathname === "/api/auth/logout") {
-    if (!sameOrigin(request)) return Response.json({ error: "Cross-origin sign-out is not allowed." }, { status: 403 });
-    return new Response(null, {
-      status: 204,
-      headers: { "Set-Cookie": sessionCookie(request, "", 0), "Cache-Control": "no-store" },
-    });
   }
 
   return new Response("Method not allowed", { status: 405, headers: { Allow: "GET, POST" } });

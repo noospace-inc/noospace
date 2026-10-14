@@ -551,6 +551,7 @@ export type CashEntry = {
   isSettled: boolean;
   createdBy: string;
   createdAt: string;
+    editedAt?: string;
 };
 
 export const cashbookEntries: CashEntry[] = [

@@ -5,6 +5,7 @@ import {
   Check,
   Paperclip,
   Pencil,
+  PencilLine,
   Plus,
   Receipt,
   ShieldCheck,
@@ -89,6 +90,8 @@ function CashbookPage() {
     return project?.payment.clientName.trim() || project?.name || "—";
   };
   const canManageCash = currentUser.role === "admin";
+  const projectName = (entry: CashEntry) => projects.find((project) => project.id === entry.projectId)?.name ?? "—";
+  const enteredBy = (entry: CashEntry) => users.find((user) => user.id === entry.createdBy)?.name ?? currentUser.name;
 
   const monthPrefix = iso(new Date()).slice(0, 7);
   const rows = cash
@@ -212,12 +215,12 @@ function CashbookPage() {
                   <thead>
                     <tr className="border-b border-border text-left text-xs text-muted-foreground">
                       <th className="px-5 py-3 font-medium">Date</th>
-                      <th className="px-3 py-3 font-medium">Type</th>
                       <th className="px-3 py-3 font-medium">Amount</th>
                       <th className="px-3 py-3 font-medium">Person</th>
+                      <th className="px-3 py-3 font-medium">Project</th>
+                      <th className="px-3 py-3 font-medium">Entry by</th>
                       <th className="px-3 py-3 font-medium">Note</th>
                       <th className="px-3 py-3 font-medium">Proof</th>
-                      <th className="px-5 py-3 font-medium">Status</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -228,22 +231,16 @@ function CashbookPage() {
                         className="cursor-pointer border-b border-border/60 last:border-0 hover:bg-secondary/50"
                       >
                         <td className="px-5 py-3 text-xs text-muted-foreground">{fmtDate(e.date)}</td>
-                        <td className="px-3 py-3 text-xs">{typeMeta[e.entryType].label}</td>
                         <td className={cn("px-3 py-3 font-semibold", typeMeta[e.entryType].tone)}>
                           {typeMeta[e.entryType].sign}
                           {inr(e.amount)}
                         </td>
                         <td className="px-3 py-3 text-xs">{entryPerson(e)}</td>
+                        <td className="max-w-36 truncate px-3 py-3 text-xs">{projectName(e)}</td>
+                        <td className="px-3 py-3 text-xs"><span className="block">{enteredBy(e)}</span><span className="mt-0.5 flex items-center gap-1 text-[10px] text-muted-foreground">{e.editedAt ? <><PencilLine className="size-3" /> Edited · {new Date(e.editedAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</> : new Date(e.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span></td>
                         <td className="max-w-[220px] truncate px-3 py-3 text-xs text-muted-foreground">{e.note}</td>
                         <td className="px-3 py-3 text-xs text-muted-foreground">
                           {e.proof ? <Paperclip className="size-3.5" /> : "—"}
-                        </td>
-                        <td className="px-5 py-3">
-                          {e.entryType === "withdrawal" ? (
-                            <StatusBadge entry={e} canManage={canManageCash} onSettle={() => settle(e)} />
-                          ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
-                          )}
                         </td>
                       </tr>
                     ))}
@@ -283,6 +280,7 @@ function CashbookPage() {
                             {typeMeta[e.entryType].label}
                           </span>
                         </div>
+                        <p className="mt-1 truncate text-[10px] text-muted-foreground">Project: {projectName(e)} · Entry by {enteredBy(e)} · {e.editedAt ? `Edited ${new Date(e.editedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}` : new Date(e.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</p>
                         {e.note ? <p className="mt-1 truncate text-[11px] text-muted-foreground">{e.note}</p> : null}
                       </button>
                     </li>

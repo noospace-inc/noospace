@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { CheckCircle2, Gauge, LogOut, Pencil, Plus, Timer, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import type { PropLink } from "@/lib/mock-data";
 import { distributionTotals, emptyLink, inr, projectStats, useStore, userPunctuality } from "@/lib/store";
 
 export const Route = createFileRoute("/profile")({
+  validateSearch: (search: Record<string, unknown>) => ({ userId: typeof search.userId === "string" ? search.userId : undefined }),
   head: () => ({
     meta: [
       { title: "Your profile - Noospace" },
@@ -27,7 +28,11 @@ type FocusPanel = "punctuality" | "completed" | "ongoing" | null;
 type ProfileSection = "schedule" | "payments";
 
 function ProfilePage() {
-  const { currentUser, projects, updateProfile } = useStore();
+  const { currentUser: signedInUser, users, projects, updateProfile, updateUser, deleteUser } = useStore();
+  const targetId = Route.useSearch().userId;
+  const viewedFromUsers = Boolean(targetId);
+  const currentUser = users.find((user) => user.id === targetId) ?? signedInUser;
+  const navigate = useNavigate();
   const [form, setForm] = useState({
     name: currentUser.name,
     email: currentUser.email,
@@ -39,6 +44,12 @@ function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [focus, setFocus] = useState<FocusPanel>(null);
   const [section, setSection] = useState<ProfileSection>("schedule");
+
+  useEffect(() => {
+    setForm({ name: currentUser.name, email: currentUser.email, title: currentUser.title, github: currentUser.github, bio: currentUser.bio });
+    setLinks(currentUser.links);
+    setEditing(false);
+  }, [currentUser]);
 
   const mine = projects.filter((p) => p.memberIds.includes(currentUser.id));
   const completedProjects = mine.filter((p) => projectStats(p).completion === 100);
@@ -65,7 +76,9 @@ function ProfilePage() {
     : null;
 
   const save = () => {
-    updateProfile({ ...form, links: links.filter((l) => l.value) });
+    const patch = { ...form, links: links.filter((l) => l.value) };
+    if (viewedFromUsers) updateUser(currentUser.id, patch);
+    else updateProfile(patch);
     setEditing(false);
     toast.success("Profile saved");
   };
@@ -74,6 +87,10 @@ function ProfilePage() {
     setForm({ name: currentUser.name, email: currentUser.email, title: currentUser.title, github: currentUser.github, bio: currentUser.bio });
     setLinks(currentUser.links);
     setEditing(false);
+  };
+  const setProfileVisibility = (privateProfile: boolean) => {
+    if (viewedFromUsers) updateUser(currentUser.id, { profileVisibility: privateProfile ? "private" : "public" });
+    else updateProfile({ profileVisibility: privateProfile ? "private" : "public" });
   };
 
   return (
@@ -110,9 +127,9 @@ function ProfilePage() {
               </Button>
             </div>
           ) : (
-            <Button size="icon" variant="secondary" className="size-9 rounded-full" onClick={() => setEditing(true)}>
+            <div className="flex items-center gap-2"><Button size="icon" variant="secondary" className="size-9 rounded-full" onClick={() => setEditing(true)}>
               <Pencil className="size-4" />
-            </Button>
+            </Button>{viewedFromUsers ? <Button variant="destructive" size="sm" className="rounded-full" onClick={() => { if (window.confirm(`Delete ${currentUser.name}'s account?`)) { deleteUser(currentUser.id); void navigate({ to: "/users" }); } }}>Delete account</Button> : null}</div>
           )}
         </div>
 
@@ -173,7 +190,7 @@ function ProfilePage() {
           <Switch
             checked={currentUser.profileVisibility === "private"}
             onCheckedChange={(privateProfile) => {
-              updateProfile({ profileVisibility: privateProfile ? "private" : "public" });
+              setProfileVisibility(privateProfile);
               toast.success(privateProfile ? "Profile set to private" : "Profile set to public");
             }}
             aria-label="Toggle private profile"

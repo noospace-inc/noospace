@@ -4,7 +4,6 @@ import {
   CalendarDays,
   FolderKanban,
   LayoutDashboard,
-  LogOut,
   Moon,
   Search,
   Shield,
@@ -37,8 +36,8 @@ function useTheme() {
   return { dark, toggle: () => setDark((d) => !d) };
 }
 
-export function AppShell({ children, onSignOut }: { children: ReactNode; onSignOut?: () => void | Promise<void> }) {
-  const { currentUser, notifications } = useStore();
+export function AppShell({ children }: { children: ReactNode; onSignOut?: () => void | Promise<void> }) {
+  const { currentUser } = useStore();
   const { dark, toggle } = useTheme();
   const [searchOpen, setSearchOpen] = useState(false);
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -52,7 +51,7 @@ export function AppShell({ children, onSignOut }: { children: ReactNode; onSignO
             <div className="flex h-full w-16 flex-col items-center justify-between rounded-3xl bg-sidebar py-4 shadow-card">
               <div className="flex flex-col items-center gap-2">
                 <Link to="/" aria-label="Noospace dashboard" className="mb-3 grid size-10 place-items-center overflow-hidden rounded-2xl bg-primary">
-                  <img src="/favicon.png" alt="" className="size-full object-cover" />
+                  <img src="/favicon.svg" alt="" className="size-full object-cover" />
                 </Link>
                 {items.map((item) => {
                   const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
@@ -119,7 +118,6 @@ export function AppShell({ children, onSignOut }: { children: ReactNode; onSignO
                 </button>
                 <Link to="/notifications" aria-label="Notifications" className="relative grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">
                   <Bell className="size-4" />
-                  {notifications.length > 0 && <span className="absolute right-1 top-1 size-2 rounded-full bg-brand-pink" />}
                 </Link>
                 <button
                   type="button"
@@ -130,7 +128,6 @@ export function AppShell({ children, onSignOut }: { children: ReactNode; onSignO
                   {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
                 </button>
                 <Link to="/profile" aria-label={`Profile: ${currentUser.name}`}><Initials user={currentUser} size={32} /></Link>
-                {onSignOut && <button type="button" aria-label="Sign out" title="Sign out" onClick={() => { void onSignOut(); }} className="grid size-9 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"><LogOut className="size-4" /></button>}
               </div>
             </header>
             <main className="pb-10">{children}</main>

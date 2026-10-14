@@ -179,7 +179,7 @@ function CalendarPage() {
   const moveSelected = (delta: number) => setSelectedDate((d) => addDays(d, delta));
 
   return (
-    <div className="space-y-4">
+    <div className="min-w-0 space-y-4 overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-2xl font-bold tracking-tight sm:text-4xl">Calendar</h1>
         <div className="flex items-center gap-2">
@@ -204,7 +204,7 @@ function CalendarPage() {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Surface className="min-w-0 overflow-hidden p-3 sm:p-5">
           <SectionTitle
             title={view === "month" ? monthLabel : view === "week" ? "Weekly view" : "Daily view"}
@@ -285,7 +285,7 @@ function CalendarPage() {
               </div>
             </div>
           ) : view === "week" ? (
-            <div className="grid gap-2 md:grid-cols-7">
+            <div className="grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-7">
               {weekDays.map((date) => (
                 <button
                   key={date}
@@ -295,7 +295,7 @@ function CalendarPage() {
                     setView("day");
                   }}
                   className={cn(
-                    "rounded-2xl bg-secondary p-3 text-left transition-colors hover:bg-accent",
+                    "min-w-0 overflow-hidden rounded-2xl bg-secondary p-3 text-left transition-colors hover:bg-accent",
                     date === today && "shadow-[0_0_0_2px_var(--color-brand-green),0_0_18px_oklch(0.66_0.13_155_/_0.45)]",
                   )}
                 >

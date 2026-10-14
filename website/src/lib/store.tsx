@@ -74,9 +74,10 @@ type Actions = {
   setCashSettled: (entryId: string, settled: boolean) => void;
   setRole: (userId: string, role: Role) => void;
   addUser: (input: Pick<User, "name" | "email" | "role" | "title"> & Partial<Pick<User, "github" | "bio" | "accent">>) => void;
-  updateUser: (userId: string, patch: Partial<Pick<User, "name" | "email" | "role" | "title" | "github" | "bio">>) => void;
+  updateUser: (userId: string, patch: Partial<Pick<User, "name" | "email" | "role" | "title" | "github" | "bio" | "links" | "profileVisibility">>) => void;
   deleteUser: (userId: string) => void;
   updateProfile: (patch: Partial<User>) => void;
+  clearNotifications: () => void;
 };
 
 const StoreContext = createContext<(State & Actions) | null>(null);
@@ -92,6 +93,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
   const [trend, setTrend] = useState<typeof seedTrend>(seedTrend);
   const [notifications, setNotifications] = useState<WorkspaceNotification[]>([]);
   const notify = useCallback((text: string, kind: WorkspaceNotification["kind"]) => setNotifications((items) => [{ id: `n_${uid()}`, text, kind, at: new Date().toISOString() }, ...items].slice(0, 100)), []);
+  const clearNotifications = useCallback(() => setNotifications([]), []);
   const [revokedIdentities, setRevokedIdentities] = useState<RevokedIdentity[]>([]);
   const [databaseReady, setDatabaseReady] = useState(false);
   const saveQueue = useRef<Promise<void>>(Promise.resolve());
@@ -533,15 +535,34 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
         );
       });
     }
+    if (entry.projectId && entry.entryType === "expense") {
+      const recipient = users.find((user) => user.name.toLowerCase() === (entry.takenBy ?? "").trim().toLowerCase());
+      const project = projects.find((item) => item.id === entry.projectId);
+      if (recipient && project?.memberIds.includes(recipient.id)) {
+        patchProject(entry.projectId, (p) => logged({
+          ...p,
+          distributions: [{
+            id: `cash_${uid()}`,
+            date: entry.date,
+            amountReceived: 0,
+            perPerson: p.payment.perPersonRate,
+            allocations: [{ userId: recipient.id, videoNames: [], amount: entry.amount }],
+            unmatched: [],
+            createdBy: activeUserId,
+          }, ...p.distributions],
+        }, "distribution", `Recorded ${inr(entry.amount)} cashbook expense paid to ${recipient.name}`));
+      }
+    }
     setCash((prev) => [
       { ...entry, id: `c_${uid()}`, createdBy: activeUserId, createdAt: new Date().toISOString() },
       ...prev,
     ]);
     notify(`${entry.entryType === "deposit" ? "Credited" : "Debited"} ${inr(entry.amount)}${entry.takenBy || entry.putBy ? ` — ${entry.takenBy || entry.putBy}` : ""}`, "money");
-  }, [patchProject, logged, activeUserId, notify]);
+  }, [patchProject, logged, activeUserId, notify, users, projects]);
 
   const updateCashEntry = useCallback<Actions["updateCashEntry"]>((entryId, entry) => {
-    setCash((prev) => prev.map((e) => (e.id === entryId ? { ...e, ...entry } : e)));
+    const editedAt = new Date().toISOString();
+    setCash((prev) => prev.map((e) => (e.id === entryId ? { ...e, ...entry, date: iso(new Date()), editedAt } : e)));
   }, []);
 
   const setCashSettled = useCallback<Actions["setCashSettled"]>((entryId, settled) => {
@@ -653,6 +674,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
       updateUser,
       deleteUser,
       updateProfile,
+        clearNotifications,
     };
   }, [
     users,
@@ -689,6 +711,7 @@ export function StoreProvider({ children, identity = null }: { children: ReactNo
     updateUser,
     deleteUser,
     updateProfile,
+    clearNotifications,
   ]);
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

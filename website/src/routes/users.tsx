@@ -1,5 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { Pencil, Plus, Search, ShieldCheck, Trash2 } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { Plus, Search, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -168,8 +168,7 @@ function UsersPage() {
               <div className="flex min-w-0 items-center gap-3">
                 <Initials user={u} size={40} />
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium">{u.name}</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{u.email}</p>
+                  <Link to="/profile" search={{ userId: u.id }} className="block min-w-0 rounded-lg"><p className="truncate text-sm font-medium">{u.name}</p><p className="truncate text-[11px] text-muted-foreground">{u.email}</p></Link>
                 </div>
               </div>
               <div className="flex shrink-0 items-center gap-2">
@@ -200,12 +199,6 @@ function UsersPage() {
                   }}
                 >
                   {u.role === "admin" ? "Demote to staff" : "Promote to admin"}
-                </Button>
-                <Button variant="secondary" size="icon" className="size-9 rounded-full" aria-label={`Edit ${u.name}`} onClick={() => startEditUser(u)}>
-                  <Pencil className="size-4" />
-                </Button>
-                <Button variant="destructive" size="icon" className="size-9 rounded-full" aria-label={`Delete ${u.name}`} onClick={() => setDeletingUser(u)}>
-                  <Trash2 className="size-4" />
                 </Button>
               </div>
             </li>

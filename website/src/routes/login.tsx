@@ -137,7 +137,7 @@ function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-white to-violet-50 px-5 py-10">
       <section className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-xl shadow-slate-900/5 sm:p-10">
         <div className="mx-auto size-14 overflow-hidden rounded-2xl bg-primary">
-          <img src="/favicon.png" alt="Noospace logo" className="size-full object-cover" />
+          <img src="/favicon.svg" alt="Noospace logo" className="size-full object-cover" />
         </div>
         <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-900">Welcome to Noospace</h1>
         <p className="mt-2 text-sm text-slate-500">Sign in securely with your Google account.</p>

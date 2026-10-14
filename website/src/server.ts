@@ -165,10 +165,10 @@ async function handleAuthApi(request: Request, env: DatabaseEnv) {
   if (request.method === "GET" && new URL(request.url).pathname === "/api/auth/session") {
     const token = cookieValue(request, sessionCookieName);
     if (!token) return Response.json({ identity: null }, { headers: { "Cache-Control": "no-store" } });
+    let identity: GoogleIdentity;
     try {
-      const { identity } = await verifyGoogleToken(token, clientIdValue);
+      ({ identity } = await verifyGoogleToken(token, clientIdValue));
       if (await isRevokedIdentity(env, identity)) throw new Error("Account removed");
-      return Response.json({ identity }, { headers: { "Cache-Control": "no-store" } });
     } catch {
       return Response.json({ identity: null }, {
         headers: {
@@ -177,6 +177,13 @@ async function handleAuthApi(request: Request, env: DatabaseEnv) {
         },
       });
     }
+    try {
+      await ensureWorkspaceUser(env, identity);
+    } catch (error) {
+      console.error("Unable to ensure workspace user during session restore", error);
+      return Response.json({ error: "The workspace account could not be saved. Please try again." }, { status: 503 });
+    }
+    return Response.json({ identity }, { headers: { "Cache-Control": "no-store" } });
   }
 
   if (request.method === "POST" && new URL(request.url).pathname === "/api/auth/logout") {

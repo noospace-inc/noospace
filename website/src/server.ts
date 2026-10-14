@@ -104,7 +104,7 @@ async function ensureWorkspaceUser(env: DatabaseEnv, identity: GoogleIdentity) {
 
     const snapshot = JSON.parse(row.data) as WorkspaceSnapshot;
     const savedUsers = Array.isArray(snapshot.users) ? snapshot.users : [];
-    if (savedUsers.some((savedUser) => savedUser.id === user.id || (typeof savedUser.email === "string" && savedUser.email.toLowerCase() === identity.email.toLowerCase()))) return;
+    if (savedUsers.some((savedUser) => savedUser && typeof savedUser === "object" && (savedUser.id === user.id || (typeof savedUser.email === "string" && savedUser.email.toLowerCase() === identity.email.toLowerCase())))) return;
 
     const next = { ...snapshot, users: [...savedUsers, user] };
     const result = await env.DATABASE.prepare(
@@ -166,7 +166,8 @@ async function handleAuthApi(request: Request, env: DatabaseEnv) {
         await ensureWorkspaceUser(env, identity);
       } catch (error) {
         console.error("Unable to create workspace user after Google sign-in", error);
-        return Response.json({ error: "Google sign-in succeeded, but the workspace account could not be saved. Please try again." }, { status: 503 });
+        const diagnostic = error instanceof Error ? `${error.name}: ${error.message}`.slice(0, 240) : "Unknown server error";
+        return Response.json({ error: "Google sign-in succeeded, but the workspace account could not be saved. Please try again.", diagnostic }, { status: 503 });
       }
       const maxAge = Math.max(0, Math.min((payload.exp ?? 0) - Math.floor(Date.now() / 1000), 3600));
       if (!maxAge) return Response.json({ error: "Google sign-in expired. Please try again." }, { status: 401 });

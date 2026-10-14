@@ -55,8 +55,11 @@ function LoginPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ credential }),
       });
-      const result = await response.json().catch(() => null) as { error?: string } | null;
-      if (!response.ok) throw new Error(result?.error ?? "Google sign-in failed. Please try again.");
+      const result = await response.json().catch(() => null) as { error?: string; diagnostic?: string } | null;
+      if (!response.ok) {
+        if (result?.diagnostic) console.error("Google sign-in server diagnostic", result.diagnostic);
+        throw new Error(result?.error ?? "Google sign-in failed. Please try again.");
+      }
       await navigate({ to: "/", replace: true });
     } catch (cause) {
       console.error("Google sign-in failed", cause);

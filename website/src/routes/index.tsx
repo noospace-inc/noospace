@@ -1,11 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarClock, CheckCircle2, ChevronLeft, ChevronRight, FolderKanban, Gauge } from "lucide-react";
+import { CalendarClock, CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, FolderKanban, Gauge } from "lucide-react";
 import { useState } from "react";
 
 import { PerformanceChart } from "@/components/performance-chart";
 import { AvatarGroup, EmptyState, Initials, ProgressBar, SectionTitle, StatCard, StatusPill, Surface, accent } from "@/components/ui-bits";
 import { addDays, iso } from "@/lib/mock-data";
-import { projectStats, useStore, useUserMap } from "@/lib/store";
+import { canViewCalendarNote, projectStats, useStore, useUserMap } from "@/lib/store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,7 +27,7 @@ export const Route = createFileRoute("/")({
 });
 
 function Dashboard() {
-  const { projects, users, currentUser, trend } = useStore();
+  const { projects, users, currentUser, trend, notes } = useStore();
   const userMap = useUserMap();
   const today = iso(new Date());
 
@@ -48,6 +48,7 @@ function Dashboard() {
         .flatMap((s) => s.tasks.map((t) => ({ project: p, task: t }))),
     )
     .slice(0, 5);
+  const todaysEvents = notes.filter((note) => note.date === today && canViewCalendarNote(note, currentUser, projects));
 
   const leaderboard = [...users].sort((a, b) => b.punctuality - a.punctuality).slice(0, 4);
   const pinnedProjects = [...projects].filter((p) => p.pinnedAt).sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
@@ -62,9 +63,9 @@ function Dashboard() {
 
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <Surface className="min-w-0 overflow-hidden">
-          <SectionTitle title="Today's schedule" subtitle="Your team's tasks in flight" />
-          {todaysTasks.length === 0 ? (
-            <EmptyState title="Nothing scheduled today" description="Once a leader publishes a schedule, tasks appear here." />
+          <SectionTitle title="Today's schedule" subtitle="Your team's tasks and calendar events" />
+          {todaysTasks.length === 0 && todaysEvents.length === 0 ? (
+            <EmptyState title="Nothing scheduled today" description="Published tasks and marked calendar events will appear here." />
           ) : (
             <ul className="space-y-3">
               {todaysTasks.map(({ project, task }) => (
@@ -79,6 +80,20 @@ function Dashboard() {
                     </p>
                   </div>
                   <StatusPill status={task.status} compact />
+                </li>
+              ))}
+              {todaysEvents.map((event) => (
+                <li key={event.id} className="flex items-center gap-3">
+                  <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-lilac-soft text-brand-lilac">
+                    <CalendarDays className="size-4" />
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{event.title}</p>
+                    <p className="truncate text-[11px] text-muted-foreground">Calendar event</p>
+                  </div>
+                  <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-medium capitalize text-muted-foreground">
+                    {event.importance}
+                  </span>
                 </li>
               ))}
             </ul>

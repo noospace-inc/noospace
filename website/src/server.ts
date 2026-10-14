@@ -21,6 +21,15 @@ type DatabaseEnv = {
   GOOGLE_CLIENT_ID?: string;
 };
 
+function resolveDatabaseEnv(request: Request, runtimeEnv?: DatabaseEnv): DatabaseEnv {
+  const requestEnv = (request as Request & { runtime?: { cloudflare?: { env?: DatabaseEnv } } }).runtime?.cloudflare?.env;
+  const isolateEnv = (globalThis as typeof globalThis & { __env__?: DatabaseEnv }).__env__;
+  return {
+    GOOGLE_CLIENT_ID: runtimeEnv?.GOOGLE_CLIENT_ID ?? requestEnv?.GOOGLE_CLIENT_ID ?? isolateEnv?.GOOGLE_CLIENT_ID,
+    DATABASE: runtimeEnv?.DATABASE ?? requestEnv?.DATABASE ?? isolateEnv?.DATABASE,
+  };
+}
+
 const googleKeys = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
 const sessionCookieName = "noospace_google_session";
 
@@ -211,9 +220,7 @@ async function handleAuthApi(request: Request, env: DatabaseEnv) {
 }
 
 async function handleWorkspaceApi(request: Request, runtimeEnv?: DatabaseEnv): Promise<Response> {
-  const requestEnv = (request as Request & { runtime?: { cloudflare?: { env?: DatabaseEnv } } }).runtime?.cloudflare?.env;
-  const isolateEnv = (globalThis as typeof globalThis & { __env__?: DatabaseEnv }).__env__;
-  const env = runtimeEnv ?? requestEnv ?? isolateEnv ?? {};
+  const env = resolveDatabaseEnv(request, runtimeEnv);
   const origin = request.headers.get("origin");
   if (request.method === "PUT" && origin !== new URL(request.url).origin) {
     return Response.json({ error: "Cross-origin workspace updates are not allowed." }, { status: 403 });
@@ -334,7 +341,7 @@ export default {
   async fetch(request: Request, env: unknown, ctx: unknown) {
     try {
       const url = new URL(request.url);
-      if (url.pathname.startsWith("/api/auth/")) return await handleAuthApi(request, (env as DatabaseEnv | undefined) ?? {});
+      if (url.pathname.startsWith("/api/auth/")) return await handleAuthApi(request, resolveDatabaseEnv(request, env as DatabaseEnv | undefined));
       if (url.pathname === "/api/workspace") return await handleWorkspaceApi(request, env as DatabaseEnv | undefined);
       const handler = await getServerEntry();
       const response = await handler.fetch(request, env, ctx);
